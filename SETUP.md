@@ -6,9 +6,15 @@
 1. Go to [neynar.com](https://neynar.com) → Sign up
 
 ### Get API Key
-1. Dashboard → API Keys
-2. Create new key → Copy it
-3. Set: `NEYNAR_API_KEY=your_key_here`
+Your API key is: `F56A0E42-1152-4DBF-8309-C4FD565A6CCD`
+
+### ⚠️ Signer Creation Requires Paid Plan
+Unfortunately, creating signers requires a **paid Neynar plan** ($29/month).
+
+**Options:**
+1. **Upgrade at neynar.com** → Pricing → Choose a plan
+2. **Use existing signers** - If you already have Farcaster signers, use those
+3. **Contact Neynar** - Ask if they have a free tier for hackathons
 
 ### Create Webhook (for receiving cast events)
 1. Go to [dev.neynar.com](https://dev.neynar.com) → Webhooks
@@ -19,124 +25,95 @@
 4. After creating, you'll get a webhook secret
 5. Set: `NEYNAR_WEBHOOK_SECRET=your_webhook_secret`
 
-### Create Signers (Programmatic Bot Accounts)
-Neynar signers must be created via API. Run this script:
-
-```bash
-# Get your API key first, then run:
-curl -X POST "https://api.neynar.com/v2/signer" \
-  -H "api_key: YOUR_NEYNAR_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"name": "bounty-poster"}'
-```
-
-Do this 3 times with names: `bounty-poster`, `worker-alpha`, `worker-beta`
-
-Each response gives you:
-- `signer_uuid` → Use as `BOUNTY_POSTER_SIGNER_UUID`, etc.
-- `public_key` → Use to register (see below)
-- `fid` → Use as `BOUNTY_POSTER_FID`, etc.
-
-### Register Signer (One-time per signer)
-Each signer needs to be approved via Warpcast:
-
-```bash
-# For each signer, get the approval URL:
-curl -X GET "https://api.neynar.com/v2/signer/status?public_key=0x..." \
-  -H "api_key: YOUR_NEYNAR_API_KEY"
-```
-
-The response includes an `approval_url` - open it in browser and approve with your Warpcast account.
-
 ---
 
-## 2. GROK API (via OpenRouter - FREE)
+## 2. GROQ AI (Free & Fast!)
 
-### Option A: OpenRouter (Recommended - Free)
-1. Go to [openrouter.ai](https://openrouter.ai)
-2. Sign up → Credits → Free models available
-3. Settings → API Keys → Create key
+1. Go to [console.groq.com/keys](https://console.groq.com/keys)
+2. Sign up/Login
+3. Click **Create Key** → Copy it
 4. Set in `.env.local`:
    ```
-   GROK_API_KEY=your_openrouter_key
-   GROK_BASE_URL=https://openrouter.ai/api/v1
+   GROQ_API_KEY=gsk_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
    ```
-5. Update code to use model `x-ai/grok-2` or `x-ai/grok-4-fast`
 
-### Option B: xAI Official (Paid)
-1. Go to [console.x.ai](https://console.x.ai)
-2. Sign up → API Keys → Create
-3. Set:
-   ```
-   GROK_API_KEY=your_xai_key
-   GROK_BASE_URL=https://api.x.ai/v1
-   ```
+**Models available:**
+- `llama-3.1-70b-versatile` (recommended - fast & capable)
+- `llama-3.1-8b-instant` (free tier, very fast)
+- `mixtral-8x7b-32768` (good for reasoning)
+
+Code already configured to use Groq!
 
 ---
 
 ## 3. PRIVY (Wallet Management)
-1. Go to [privy.io](https://privy.io) → Sign up
-2. Create App → Name it
-3. App Settings → API Keys
-4. Copy App ID and App Secret
-5. Set:
-   ```
-   PRIVY_APP_ID=your_app_id
-   PRIVY_APP_SECRET=your_app_secret
-   ```
+Your credentials already set:
+```
+PRIVY_APP_ID=cmnmz4gar04130ckyl41y48m1
+PRIVY_APP_SECRET=privy_app_secret_E741MK4ByEab9DbKRbC1cCLjkzoSbrcEjZHZeCdDJBxj7cLxe1grsFBgcquyAMoprwv6qKsEXLGGBxVXEMZxFUt
+```
 
 ---
 
 ## 4. UPSTASH REDIS (State Storage)
+You have an API key but missing URL/Token:
+
 1. Go to [upstash.com](https://upstash.com) → Sign up
-2. Create Redis Database → Free tier
-3. Copy REST URL and REST Token
-4. Set:
-   ```
-   UPSTASH_REDIS_REST_URL=your_url
-   UPSTASH_REDIS_REST_TOKEN=your_token
-   ```
+2. Create Redis Database (free tier)
+3. Copy:
+   - REST URL → `UPSTASH_REDIS_REST_URL`
+   - REST Token → `UPSTASH_REDIS_REST_TOKEN`
+
+Your current API key: `6436f80b-520f-4617-b357-992e84d13f1d`
 
 ---
 
 ## 5. NEXT_PUBLIC_APP_URL
-After deploying to Vercel, set:
+After deploying to Vercel:
 ```
 NEXT_PUBLIC_APP_URL=https://your-app.vercel.app
 ```
 
 ---
 
-## Complete .env.local Example
+## Complete .env.local
 
 ```bash
 # Neynar
-NEYNAR_API_KEY=neynar_xxxxxxxxxxxx
-NEYNAR_WEBHOOK_SECRET=your_webhook_secret_xxxx
+NEYNAR_API_KEY=F56A0E42-1152-4DBF-8309-C4FD565A6CCD
+NEYNAR_WEBHOOK_SECRET=your_webhook_secret
 
-# Agent Signers
-BOUNTY_POSTER_SIGNER_UUID=uuid-xxxx-xxxx
-BOUNTY_POSTER_FID=12345
-WORKER_ALPHA_SIGNER_UUID=uuid-xxxx-xxxx
-WORKER_ALPHA_FID=12346
-WORKER_BETA_SIGNER_UUID=uuid-xxxx-xxxx
-WORKER_BETA_FID=12347
+# Agent Signers (requires paid plan to create)
+BOUNTY_POSTER_SIGNER_UUID=
+BOUNTY_POSTER_FID=
+WORKER_ALPHA_SIGNER_UUID=
+WORKER_ALPHA_FID=
+WORKER_BETA_SIGNER_UUID=
+WORKER_BETA_FID=
 
 # Privy
-PRIVY_APP_ID=your_privy_app_id
-PRIVY_APP_SECRET=your_privy_app_secret
+PRIVY_APP_ID=cmnmz4gar04130ckyl41y48m1
+PRIVY_APP_SECRET=privy_app_secret_E741MK4ByEab9DbKRbC1cCLjkzoSbrcEjZHZeCdDJBxj7cLxe1grsFBgcquyAMoprwv6qKsEXLGGBxVXEMZxFUt
 
 # Upstash
 UPSTASH_REDIS_REST_URL=https://xxxx.upstash.io
 UPSTASH_REDIS_REST_TOKEN=your_token
 
-# Grok (OpenRouter)
-GROK_API_KEY=sk-or-v1-xxxxxxxxxxxx
-GROK_BASE_URL=https://openrouter.ai/api/v1
+# Groq
+GROQ_API_KEY=gsk_xxxxxxxxxxxx
 
 # Base
-BASE_RPC_URL=https://mainnet.base.org
+BASE_RPC_URL=https://base-sepolia.g.alchemy.com/v2/H3-pV1jNnbXq7-6JEW8Gt
 
 # Miniapp
-NEXT_PUBLIC_APP_URL=https://your-app.vercel.app
+NEXT_PUBLIC_APP_URL=
 ```
+
+---
+
+## Next Steps
+
+1. **Get Groq API key** from [console.groq.com/keys](https://console.groq.com/keys)
+2. **Create Upstash Redis** - Get URL & Token
+3. **Upgrade Neynar** (needed for signers) or use existing Farcaster accounts
+4. **Deploy & Test**
