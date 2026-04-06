@@ -1,6 +1,9 @@
 import OpenAI from 'openai';
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const openai = new OpenAI({
+  apiKey: process.env.GROK_API_KEY || process.env.OPENAI_API_KEY,
+  baseURL: process.env.GROK_BASE_URL || 'https://api.x.ai/v1',
+});
 
 function extractTargetLanguage(description: string): string | null {
   const langs = ['Spanish', 'French', 'German', 'Portuguese', 'Chinese', 'Japanese', 'Korean', 'Arabic', 'Hindi', 'Russian'];
@@ -25,7 +28,7 @@ export async function translateTask(description: string): Promise<{ output: stri
     const sourceText = extractSourceText(description);
 
     const response = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
+      model: 'grok-2',
       messages: [
         { role: 'system', content: `Translate the following text to ${targetLang}. Provide only the translation.` },
         { role: 'user', content: sourceText },

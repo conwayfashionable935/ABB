@@ -1,11 +1,9 @@
 import OpenAI from 'openai';
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
-function extractUrl(text: string): string | null {
-  const urlMatch = text.match(/(https?:\/\/[^\s]+)/);
-  return urlMatch ? urlMatch[1] : null;
-}
+const openai = new OpenAI({
+  apiKey: process.env.GROK_API_KEY || process.env.OPENAI_API_KEY,
+  baseURL: process.env.GROK_BASE_URL || 'https://api.x.ai/v1',
+});
 
 export async function summarizeTask(description: string): Promise<{ output: string }> {
   try {
@@ -14,7 +12,7 @@ export async function summarizeTask(description: string): Promise<{ output: stri
       .trim();
 
     const response = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
+      model: 'grok-2',
       messages: [
         { role: 'system', content: 'Summarize the following text in 2 sentences or less.' },
         { role: 'user', content: sourceText },
