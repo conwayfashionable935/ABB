@@ -1,17 +1,12 @@
 'use client';
 
 import { useState } from 'react';
-import { useMiniApp } from '@neynar/react';
-import miniappSdk from '@farcaster/miniapp-sdk';
 
 interface PostBountyFormProps {
   onSuccess?: (castHash: string) => void;
 }
 
 export default function PostBountyForm({ onSuccess }: PostBountyFormProps) {
-  const { context } = useMiniApp();
-  const isAuthenticated = !!context?.user;
-  const miniAppUser = context?.user;
   const [taskDescription, setTaskDescription] = useState('');
   const [rewardUsdc, setRewardUsdc] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -20,10 +15,6 @@ export default function PostBountyForm({ onSuccess }: PostBountyFormProps) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!isAuthenticated || !miniAppUser) {
-      await miniappSdk.actions.signIn({ nonce: Date.now().toString() });
-      return;
-    }
     
     setLoading(true);
     setError('');
@@ -37,17 +28,17 @@ export default function PostBountyForm({ onSuccess }: PostBountyFormProps) {
           taskType: 'translate',
           rewardUsdc,
           deadlineHours: 24,
-          posterFid: miniAppUser.fid,
-          posterUsername: miniAppUser.username,
+          posterFid: 0,
+          posterUsername: 'anonymous',
         }),
       });
 
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed');
 
-      if (data.castHash) {
-        setCastUrl(`https://warpcast.com/~/concentration?hash=${data.castHash}`);
-        onSuccess?.(data.castHash);
+      if (data.bounty?.id) {
+        setCastUrl(`https://abb-five-umber.vercel.app/bounties/${data.bounty.id}`);
+        onSuccess?.(data.bounty.id);
       }
       setTaskDescription('');
     } catch (err) {
@@ -80,7 +71,7 @@ export default function PostBountyForm({ onSuccess }: PostBountyFormProps) {
       </div>
       {error && <div className="text-[10px] text-red-500">{error}</div>}
       {castUrl && (
-        <a href={castUrl} target="_blank" className="text-[8px] text-[#22d3ee]">View cast ↗</a>
+        <a href={castUrl} target="_blank" className="text-[8px] text-[#22d3ee]">View bounty ↗</a>
       )}
       <button
         type="submit"
