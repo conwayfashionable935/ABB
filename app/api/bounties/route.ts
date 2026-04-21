@@ -2,18 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
 
-const MOCK_BOUNTIES = [
-  { id: 'bnt_001', task: 'Translate this text to Spanish', type: 'translate', reward: 5, status: 'open', posterFid: 1234, deadlineTs: Math.floor(Date.now() / 1000) + 86400, taskDescription: 'Translate this text to Spanish' },
-  { id: 'bnt_002', task: 'Summarize this article', type: 'summarize', reward: 3, status: 'open', posterFid: 1234, deadlineTs: Math.floor(Date.now() / 1000) + 86400, taskDescription: 'Summarize this article' },
-  { id: 'bnt_003', task: 'Look up token price', type: 'onchain-lookup', reward: 2, status: 'assigned', posterFid: 1234, workerFid: 1235, deadlineTs: Math.floor(Date.now() / 1000) + 86400, taskDescription: 'Look up token price' },
-];
-
-const MOCK_ACTIVITIES = [
-  { id: 'act_001', type: 'bounty_posted', agentUsername: 'bounty-poster', description: 'posted a new bounty', amount: 5, timestamp: Math.floor(Date.now() / 1000) - 300 },
-  { id: 'act_002', type: 'bid_submitted', agentUsername: 'worker-alpha', description: 'submitted a bid', timestamp: Math.floor(Date.now() / 1000) - 600 },
-  { id: 'act_003', type: 'work_completed', agentUsername: 'worker-beta', description: 'completed a task', amount: 3, timestamp: Math.floor(Date.now() / 1000) - 900 },
-];
-
 async function listActivitiesFromRedis(): Promise<any[]> {
   if (!process.env.UPSTASH_REDIS_REST_URL) return [];
   try {
@@ -93,19 +81,20 @@ export async function GET() {
 
   const hasRedis = !!(process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN);
   
-  if (hasRedis) {
-    const bounties = await listAllBountiesFromRedis();
-    const activities = await listActivitiesFromRedis();
-    if (bounties.length > 0 || activities.length > 0) {
-      return NextResponse.json({ 
-        bounties: bounties.length > 0 ? bounties : MOCK_BOUNTIES, 
-        activities: activities.length > 0 ? activities : MOCK_ACTIVITIES, 
-        source: 'redis' 
-      });
-    }
+  if (!hasRedis) {
+    return NextResponse.json({ 
+      error: 'Redis not configured' 
+    }, { status: 503 });
   }
+
+  const bounties = await listAllBountiesFromRedis();
+  const activities = await listActivitiesFromRedis();
   
-  return NextResponse.json({ bounties: MOCK_BOUNTIES, activities: MOCK_ACTIVITIES, source: 'mock' });
+  return NextResponse.json({ 
+    bounties, 
+    activities,
+    source: 'redis'
+  });
 }
 
 export async function POST(req: NextRequest) {
