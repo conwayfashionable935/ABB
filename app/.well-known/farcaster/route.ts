@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://abb-woad.vercel.app';
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://abb-five-umber.vercel.app';
 
 export async function GET() {
   const manifest = {

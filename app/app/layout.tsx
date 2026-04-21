@@ -1,6 +1,6 @@
 import { Metadata } from 'next';
 
-const APP_URL = 'https://abb-woad.vercel.app';
+const APP_URL = 'https://abb-five-umber.vercel.app';
 
 export const metadata: Metadata = {
   title: 'Dashboard | Agent Bounty Board',

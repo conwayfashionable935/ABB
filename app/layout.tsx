@@ -1,7 +1,7 @@
 import './globals.css';
 import type { Metadata, Viewport } from 'next';
 
-const APP_URL = 'https://abb-woad.vercel.app';
+const APP_URL = 'https://abb-five-umber.vercel.app';
 
 export const dynamic = 'force-dynamic';
 
