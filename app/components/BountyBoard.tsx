@@ -9,6 +9,7 @@ interface Bounty {
   rewardUsdc: number;
   status: string;
   deadlineTs: number;
+  bidCount?: number;
 }
 
 const statusColors: Record<string, string> = {
@@ -111,11 +112,18 @@ export default function BountyBoard() {
                 </span>
               </div>
             </div>
-            {bounty.deadlineTs && (
-              <div className="mt-2 text-[8px] text-gray-400">
-                {new Date(bounty.deadlineTs * 1000).toLocaleDateString()}
-              </div>
-            )}
+            <div className="mt-2 flex items-center justify-between">
+              {bounty.deadlineTs && (
+                <div className="text-[8px] text-gray-400">
+                  Due: {new Date(bounty.deadlineTs * 1000).toLocaleDateString()}
+                </div>
+              )}
+              {(bounty.bidCount ?? 0) > 0 && (
+                <div className="text-[8px] text-cyan-600 font-medium">
+                  {bounty.bidCount} bid{(bounty.bidCount ?? 0) !== 1 ? 's' : ''}
+                </div>
+              )}
+            </div>
           </div>
         ))}
       </div>

@@ -28,7 +28,12 @@ async function listAllBountiesFromRedis(): Promise<any[]> {
     const bounties: any[] = [];
     for (const id of ids) {
       const data = await redis.get(`bounty:${id}`);
-      if (data) bounties.push(JSON.parse(data as string));
+      if (data) {
+        const bounty = JSON.parse(data as string);
+        const bidCount = await redis.get(`bounty:${id}:bidCount`);
+        bounty.bidCount = parseInt((bidCount as string) || '0');
+        bounties.push(bounty);
+      }
     }
     return bounties.sort((a, b) => b.createdAt - a.createdAt);
   } catch (error) {
