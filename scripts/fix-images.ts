@@ -10,40 +10,22 @@ async function resizeImage(
   height: number
 ) {
   const image = await Jimp.read(inputPath);
-  await image
-    .resize({ w: width, h: height })
-    .write(outputPath as `${string}.${string}`);
+  image.resize({ w: width, h: height });
+  await image.write(outputPath as `${string}.${string}`);
   console.log(`Resized ${inputPath} -> ${outputPath} (${width}x${height})`);
 }
 
 async function main() {
-  console.log('Fixing Mini App images...\n');
+  console.log('Resizing og-image to 3:2 ratio (1200x800)...\n');
 
-  // icon.png: 516x515 -> 1024x1024 (no alpha)
   await resizeImage(
-    join(PUBLIC_DIR, 'icon.png'),
-    join(PUBLIC_DIR, 'icon.png'),
-    1024,
-    1024
+    join(PUBLIC_DIR, 'og-image.png'),
+    join(PUBLIC_DIR, 'og-image.png'),
+    1200,
+    800
   );
 
-  // splash.png: 1408x768 -> 200x200
-  await resizeImage(
-    join(PUBLIC_DIR, 'splash.png'),
-    join(PUBLIC_DIR, 'splash.png'),
-    200,
-    200
-  );
-
-  // preview.png: 391x470 -> 1284x2778 (correct for mini app)
-  await resizeImage(
-    join(PUBLIC_DIR, 'preview.png'),
-    join(PUBLIC_DIR, 'preview.png'),
-    1284,
-    2778
-  );
-
-  console.log('\nAll images fixed!');
+  console.log('\nDone!');
 }
 
 main().catch(console.error);

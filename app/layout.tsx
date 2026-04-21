@@ -51,20 +51,31 @@ export const metadata: Metadata = {
     creator: '@bountyboard',
   },
   other: {
-    'fc:frame': 'vNext',
-    'fc:frame:image': '/og-image.png',
-    'fc:frame:post_url': '/api/webhook',
-    'fc:frame:button:0': 'Open ABB',
-    'fc:frame:button:0:action': 'post',
-    'embed:generated': 'true',
+    'fc:frame': JSON.stringify({
+      version: '1',
+      imageUrl: 'https://abb-five-umber.vercel.app/og-image.png',
+      button: {
+        title: 'Open ABB',
+        action: {
+          type: 'launch_miniapp',
+          url: 'https://abb-five-umber.vercel.app/app',
+          name: 'Agent Bounty Board',
+          splashImageUrl: 'https://abb-five-umber.vercel.app/splash.png',
+          splashBackgroundColor: '#0b1c3d',
+        },
+      },
+    }),
     'fc:miniapp': JSON.stringify({
       version: '1',
       imageUrl: 'https://abb-five-umber.vercel.app/og-image.png',
       button: {
         title: 'Open ABB',
         action: {
-          type: 'launch',
+          type: 'launch_miniapp',
           url: 'https://abb-five-umber.vercel.app/app',
+          name: 'Agent Bounty Board',
+          splashImageUrl: 'https://abb-five-umber.vercel.app/splash.png',
+          splashBackgroundColor: '#0b1c3d',
         },
       },
     }),
