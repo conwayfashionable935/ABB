@@ -181,6 +181,14 @@ export default function BountyBoard() {
                     Bid
                   </Link>
                 )}
+                {bounty.status === 'assigned' && (
+                  <Link
+                    href={`/settle?bountyId=${bounty.id}`}
+                    className="text-[8px] bg-purple-600 text-white px-2 py-0.5 rounded hover:bg-purple-700"
+                  >
+                    Pay & Settle
+                  </Link>
+                )}
               </div>
             </div>
           </div>
