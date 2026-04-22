@@ -16,29 +16,32 @@ async function postCastToFarcaster(text: string): Promise<{hash: string | null, 
   const neynarApiKey = process.env.NEYNAR_API_KEY || '';
   const signerUuid = process.env.BOUNTY_POSTER_SIGNER_UUID || '';
   
-  console.log('[bounties] postCastToFarcaster called');
-  console.log('[bounties] API Key exists:', !!neynarApiKey);
-  console.log('[bounties] Signer exists:', !!signerUuid);
-  console.log('[bounties] Signer UUID:', signerUuid);
+  console.log('[bounties] API Key:', neynarApiKey ? 'exists' : 'MISSING');
+  console.log('[bounties] Signer UUID:', signerUuid ? 'exists' : 'MISSING');
   
-  if (!neynarApiKey) {
-    return { hash: null, error: 'No NEYNAR_API_KEY configured' };
-  }
-  
-  if (!signerUuid) {
-    return { hash: null, error: 'No BOUNTY_POSTER_SIGNER_UUID configured' };
+  if (!neynarApiKey || !signerUuid) {
+    return { hash: null, error: 'Missing NEYNAR_API_KEY or BOUNTY_POSTER_SIGNER_UUID' };
   }
   
   try {
     const { NeynarAPIClient } = await import('@neynar/nodejs-sdk');
-    const neynar = new NeynarAPIClient({ apiKey: neynarApiKey });
     
-    console.log('[bounties] Publishing cast with signer:', signerUuid, 'text:', text);
+    // Try using the client with explicit API key in constructor
+    const neynar = new NeynarAPIClient({ 
+      apiKey: neynarApiKey 
+    });
+    
+    console.log('[bounties] Publishing cast:', text.slice(0, 50));
     const result = await (neynar as any).publishCast(signerUuid, text, {});
-    console.log('[bounties] Cast result:', JSON.stringify(result));
-    return { hash: result?.hash || null };
+    console.log('[bounties] Result:', JSON.stringify(result).slice(0, 200));
+    
+    if (result?.hash) {
+      return { hash: result.hash };
+    } else {
+      return { hash: null, error: result?.message || 'No hash returned' };
+    }
   } catch (error: any) {
-    console.error('[bounties] Error posting cast:', error.message || String(error));
+    console.error('[bounties] Error:', error.message || String(error));
     return { hash: null, error: error.message || String(error) };
   }
 }
@@ -46,11 +49,14 @@ async function postCastToFarcaster(text: string): Promise<{hash: string | null, 
 export async function GET() {
   try {
     const config = getRedisConfig();
-    if (!config.url || !config.token) {
+    const redisUrl = config.url?.trim() || '';
+    const redisToken = config.token?.trim() || '';
+    
+    if (!redisUrl || !redisToken) {
       return NextResponse.json({ error: 'Redis not configured' }, { status: 503 });
     }
 
-    const redis = new Redis(config);
+    const redis = new Redis({ url: redisUrl, token: redisToken });
     
     // Get all bounty IDs - smembers returns string[]
     const bountyIds = await redis.smembers('bounties:all');
@@ -116,11 +122,14 @@ export async function POST(req: NextRequest) {
     const id = 'bnt_' + nanoid(8);
 
     const config = getRedisConfig();
-    if (!config.url || !config.token) {
+    const redisUrl = config.url?.trim() || '';
+    const redisToken = config.token?.trim() || '';
+    
+    if (!redisUrl || !redisToken) {
       return NextResponse.json({ error: 'Redis not configured' }, { status: 503 });
     }
 
-    const redis = new Redis(config);
+    const redis = new Redis({ url: redisUrl, token: redisToken });
     
     const newBounty: any = {
       id: id,
