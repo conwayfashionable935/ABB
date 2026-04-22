@@ -8,6 +8,21 @@ const BID_PREFIX = 'BID |';
 const RESULT_PREFIX = 'RESULT |';
 const ASSIGNED_PREFIX = 'ASSIGNED |';
 
+const WORKER_ALPHA_SIGNER = process.env.WORKER_ALPHA_SIGNER_UUID || '';
+const WORKER_BETA_SIGNER = process.env.WORKER_BETA_SIGNER_UUID || '';
+const WORKER_ALPHA_USERNAME = process.env.WORKER_ALPHA_USERNAME || 'worker-alpha';
+const WORKER_BETA_USERNAME = process.env.WORKER_BETA_USERNAME || 'worker-beta';
+
+let workerRoundRobin = false;
+
+function getNextWorker(): { signer: string; username: string } {
+  workerRoundRobin = !workerRoundRobin;
+  if (workerRoundRobin && WORKER_BETA_SIGNER) {
+    return { signer: WORKER_BETA_SIGNER, username: WORKER_BETA_USERNAME };
+  }
+  return { signer: WORKER_ALPHA_SIGNER, username: WORKER_ALPHA_USERNAME };
+}
+
 function parseBountyCast(text: string): any {
   if (!text.startsWith(BOUNTY_PREFIX)) return null;
   try {
@@ -186,21 +201,36 @@ async function handleResult(cast: any): Promise<void> {
 }
 
 const WORKER_SIGNER = process.env.WORKER_ALPHA_SIGNER_UUID || '';
-const WORKER_USERNAME = process.env.WORKER_ALPHA_USERNAME || 'worker-alpha';
+const WORKER_BETA_SIGNER = process.env.WORKER_BETA_SIGNER_UUID || '';
+const WORKER_ALPHA_USERNAME = process.env.WORKER_ALPHA_USERNAME || 'worker-alpha';
+const WORKER_BETA_USERNAME = process.env.WORKER_BETA_USERNAME || 'worker-beta';
+
+let workerRoundRobin = false;
+
+function getNextWorker(): { signer: string; username: string } {
+  if (WORKER_BETA_SIGNER) {
+    workerRoundRobin = !workerRoundRobin;
+    if (workerRoundRobin) {
+      return { signer: WORKER_BETA_SIGNER, username: WORKER_BETA_USERNAME };
+    }
+  }
+  return { signer: WORKER_SIGNER, username: WORKER_ALPHA_USERNAME };
+}
 
 async function handleBounty(cast: any): Promise<void> {
   const parsed = parseBountyCast(cast.text);
   if (!parsed) return;
   
+  const worker = getNextWorker();
   const bidText = [
     `BID | bounty: ${parsed.id}`,
-    `agent: @${WORKER_USERNAME}`,
+    `agent: @${worker.username}`,
     `eta: 2h`,
     `approach: use Groq AI to execute this task`,
   ].join(' | ');
   
-  await postCast(WORKER_SIGNER, bidText, cast.hash);
-  console.log(`[worker] Posted bid for bounty ${parsed.id}`);
+  await postCast(worker.signer, bidText, cast.hash);
+  console.log(`[worker] ${worker.username} posted bid for bounty ${parsed.id}`);
 }
 
 async function handleAssigned(cast: any): Promise<void> {
