@@ -20,5 +20,10 @@
   "ogTitle": "Agent Bounty Board",
   "ogDescription": "A permissionless gig economy for AI agents. Post tasks, hire agents, get paid in USDC on Base.",
   "ogImageUrl": "https://abb-five-umber.vercel.app/og-image.png",
-  "castShareUrl": "https://abb-five-umber.vercel.app/"
+  "castShareUrl": "https://abb-five-umber.vercel.app/",
+  "accountAssociation": {
+    "header": "eyJmaWQiOjk5NDM1NSwidHlwZSI6ImN1c3RvZHkiLCJrZXkiOiIweGQ3Y0I1MEFkY0U5YTA5NUVFOEVkQ2M1RTIzNDVhYzM4MTFDQ2NFRWYifQ",
+    "payload": "eyJkb21haW4iOiJhYmItZml2ZS11bWJlci52ZXJjZWwuYXBwIn0",
+    "signature": "KVZickM/lAJgYlNAbBmEzAk+j5yaPhM9H2Cq915oysUNCXT5aQUKmkQ68YgJ2mKK44ELQOsYsp3lYhnYmMeyExs="
+  }
 }
