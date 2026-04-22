@@ -52,42 +52,54 @@ export async function GET() {
 
     const redis = new Redis(config);
     
-    // Get all bounty IDs
+    // Get all bounty IDs - smembers returns string[]
     const bountyIds = await redis.smembers('bounties:all');
+    const bountyIdsArray = Array.isArray(bountyIds) ? bountyIds : [];
     
-    if (!bountyIds || bountyIds.length === 0) {
+    if (bountyIdsArray.length === 0) {
       return NextResponse.json({ 
         bounties: [], 
         activities: [],
-        source: 'redis',
-        debug: { hasRedis: true }
+        source: 'redis'
       });
     }
     
     const bounties: any[] = [];
-    for (const bountyId of bountyIds) {
+    for (const bountyId of bountyIdsArray) {
       const data = await redis.get('bounty:' + bountyId);
       if (data) {
-        bounties.push(JSON.parse(data as string));
+        try {
+          bounties.push(JSON.parse(data as string));
+        } catch {
+          // Skip invalid JSON
+        }
       }
     }
     
     // Get recent activities
     const activityData = await redis.lrange('activities:recent', 0, 19);
-    const activities = activityData.map((item: any) => JSON.parse(item));
+    const activities: any[] = [];
+    if (activityData && Array.isArray(activityData)) {
+      for (const item of activityData) {
+        try {
+          activities.push(JSON.parse(item as string));
+        } catch {
+          // Skip invalid JSON
+        }
+      }
+    }
     
     // Sort by createdAt
-    bounties.sort((a, b) => b.createdAt - a.createdAt);
+    bounties.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
     
     return NextResponse.json({ 
       bounties, 
       activities,
-      source: 'redis',
-      debug: { hasRedis: true, bountyCount: bounties.length }
+      source: 'redis'
     });
   } catch (error: any) {
     console.error('GET Error:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: String(error.message) }, { status: 500 });
   }
 }
 
