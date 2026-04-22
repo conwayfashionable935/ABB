@@ -1,145 +1,145 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { Redis } from '@upstash/redis';
 
 export const dynamic = 'force-dynamic';
 
-async function listActivitiesFromRedis(): Promise<any[]> {
-  const url = process.env.UPSTASH_REDIS_REST_URL;
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
-  if (!url || !token) return [];
-  try {
-    const { Redis } = await import('@upstash/redis');
-    const redis = new Redis({ url: url.trim(), token: token.trim() });
-    const items = await redis.lrange('activities:recent', 0, 19);
-    return items.map(item => JSON.parse(item as string));
-  } catch (error) {
-    console.error('[api/bounties] Activity Redis error:', error);
-    return [];
-  }
+const MINIAPP_URL = 'https://abb-five-umber.vercel.app';
+
+function getRedisConfig() {
+  return {
+    url: process.env.UPSTASH_REDIS_REST_URL?.trim(),
+    token: process.env.UPSTASH_REDIS_REST_TOKEN?.trim()
+  };
 }
 
-async function listAllBountiesFromRedis(): Promise<any[]> {
-  const url = process.env.UPSTASH_REDIS_REST_URL;
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
-  if (!url || !token) {
-    console.log('[api/bounties] Redis URL not set');
-    return [];
+async function postCastToFarcaster(text: string): Promise<{hash: string | null, error?: string}> {
+  const neynarApiKey = process.env.NEYNAR_API_KEY || '';
+  const signerUuid = process.env.BOUNTY_POSTER_SIGNER_UUID || 'cdb7be82-a403-4cfe-8384-0b11657391a7';
+  
+  console.log('[bounties] postCastToFarcaster called');
+  
+  if (!neynarApiKey) {
+    return { hash: null, error: 'No API key' };
   }
+  
   try {
-    const { Redis } = await import('@upstash/redis');
-    const redis = new Redis({ url: url.trim(), token: token.trim() });
-    console.log('[api/bounties] Connected to Redis');
-    const ids = await redis.smembers('bounties:all');
-    console.log('[api/bounties] Redis IDs found:', ids, 'count:', ids.length);
-    const bounties: any[] = [];
-    for (const id of ids) {
-      const data = await redis.get(`bounty:${id}`);
-      if (data) {
-        const bounty = JSON.parse(data as string);
-        const bidCount = await redis.get(`bounty:${id}:bidCount`);
-        bounty.bidCount = parseInt((bidCount as string) || '0');
-        bounties.push(bounty);
-        console.log('[api/bounties] Loaded bounty:', bounty.id);
-      } else {
-        console.log('[api/bounties] No data found for bounty ID:', id);
-      }
-    }
-    console.log('[api/bounties] Returning', bounties.length, 'bounties');
-    return bounties.sort((a, b) => b.createdAt - a.createdAt);
-  } catch (error) {
-    console.error('[api/bounties] Redis error:', error);
-    return [];
-  }
-}
-
-async function createBountyInRedis(bounty: any): Promise<void> {
-  const url = process.env.UPSTASH_REDIS_REST_URL;
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
-  if (!url || !token) {
-    console.log('[api/bounties] Skipping Redis - no URL');
-    return;
-  }
-  try {
-    const { Redis } = await import('@upstash/redis');
-    const redis = new Redis({ url: url.trim(), token: token.trim() });
-    console.log('[api/bounties] Writing bounty to Redis:', bounty.id);
-    await redis.set(`bounty:${bounty.id}`, JSON.stringify(bounty));
-    await redis.sadd('bounties:all', bounty.id);
-    await redis.sadd('bounties:open', bounty.id);
-    console.log('[api/bounties] Bounty written successfully');
+    const { NeynarAPIClient } = await import('@neynar/nodejs-sdk');
+    const neynar = new NeynarAPIClient({ apiKey: neynarApiKey });
     
-    // Log Activity
-    const activity = {
-      id: `act_${Date.now()}`,
-      type: 'bounty_created',
-      bountyId: bounty.id,
-      description: `BROADCAST: NEW TASK "${bounty.task}" FOR ${bounty.rewardUsdc} USDC`,
-      agentUsername: bounty.posterUsername,
-      timestamp: Math.floor(Date.now() / 1000),
-      amount: bounty.rewardUsdc,
-    };
-    await redis.lpush('activities:recent', JSON.stringify(activity));
-    await redis.ltrim('activities:recent', 0, 49);
-  } catch (error) {
-    console.error('[api/bounties] createBounty error:', error);
+    console.log('[bounties] Publishing cast with signer:', signerUuid);
+    const result = await (neynar as any).publishCast(signerUuid, text, {});
+    console.log('[bounties] Cast result:', JSON.stringify(result));
+    return { hash: result?.hash || null };
+  } catch (error: any) {
+    console.error('[bounties] Error:', error.message || String(error));
+    return { hash: null, error: error.message || String(error) };
   }
 }
 
 export async function GET() {
   try {
-    console.log('[api/bounties] GET request - fetching from Redis');
-    const bounties = await listAllBountiesFromRedis();
-    const activities = await listActivitiesFromRedis();
-    console.log('[api/bounties] GET request - returning', bounties.length, 'bounties,', activities.length, 'activities');
+    const config = getRedisConfig();
+    if (!config.url || !config.token) {
+      return NextResponse.json({ error: 'Redis not configured' }, { status: 503 });
+    }
+
+    const redis = new Redis(config);
+    
+    const testKey = 'test_key_' + Date.now();
+    await redis.set(testKey, 'value_' + Date.now());
+    const testValue = await redis.get(testKey);
     
     return NextResponse.json({ 
-      bounties, 
-      activities,
-      source: 'redis'
+      testKey: testKey,
+      testValue: testValue,
+      timestamp: Date.now()
     });
-  } catch (error) {
-    console.error('[api/bounties] GET error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  } catch (error: any) {
+    console.error('GET Error:', error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
 
 export async function POST(req: NextRequest) {
   try {
-    console.log('[api/bounties] POST request received');
     const body = await req.json();
-    console.log('[api/bounties] POST body:', body);
     const { taskDescription, taskType, rewardUsdc, deadlineHours, posterFid, posterUsername } = body;
 
     if (!taskDescription || !taskType || !rewardUsdc || !deadlineHours) {
-      console.log('[api/bounties] Missing required fields');
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
     const { nanoid } = await import('nanoid');
-    const id = `bnt_${nanoid(8)}`;
-    const deadlineTs = Math.floor(Date.now() / 1000) + deadlineHours * 3600;
+    const id = 'bnt_' + nanoid(8);
 
-    const newBounty = {
-      id,
+    const config = getRedisConfig();
+    if (!config.url || !config.token) {
+      return NextResponse.json({ error: 'Redis not configured' }, { status: 503 });
+    }
+
+    const redis = new Redis(config);
+    
+    const newBounty: any = {
+      id: id,
       task: taskDescription,
       type: taskType,
       reward: rewardUsdc,
       status: 'open',
-      posterFid: posterFid || 0,
       posterUsername: posterUsername || 'anonymous',
-      deadlineTs,
-      taskDescription,
-      rewardUsdc,
-      taskType,
+      posterFid: posterFid || 0,
+      deadlineTs: Math.floor(Date.now() / 1000) + deadlineHours * 3600,
       createdAt: Math.floor(Date.now() / 1000),
-      castHash: '',
+      castHash: ''
     };
 
-    console.log('[api/bounties] Creating bounty:', newBounty);
-    await createBountyInRedis(newBounty);
-
-    return NextResponse.json({ bounty: newBounty, source: 'redis' });
-  } catch (error) {
-    console.error('[api/bounties] POST error:', error);
-    return NextResponse.json({ error: 'Failed to create bounty' }, { status: 500 });
+    const key = 'bounty:' + id;
+    await redis.set(key, JSON.stringify(newBounty));
+    
+    const verifyData = await redis.get(key);
+    
+    // ===== AUTO-POST TO FARCASTER =====
+    // Use proper BOUNTY format so other AI agents can parse it
+    const castText = [
+      `BOUNTY | id: ${id}`,
+      `task: ${taskDescription}`,
+      `type: ${taskType}`,
+      `reward: ${rewardUsdc} USDC`,
+    ].join(' | ');
+    
+    console.log('[bounties] About to post cast:', castText);
+    
+    // Post the cast to Faraster
+    const castResult = await postCastToFarcaster(castText);
+    const castHash = castResult.hash;
+    
+    // Create bounty link for viewing
+    const bountyLink = `${MINIAPP_URL}/bounties/${id}`;
+    
+    // Get neynar config for debugging
+    const neynarApiKey = process.env.NEYNAR_API_KEY;
+    
+    if (castHash) {
+      newBounty.castHash = castHash;
+      await redis.set(key, JSON.stringify(newBounty));
+      console.log('[bounties] Cast posted with hash:', castHash);
+    } else {
+      console.log('[bounties] Cast not posted, error:', castResult.error);
+    }
+    
+    return NextResponse.json({ 
+      bounty: newBounty,
+      verify: !!verifyData,
+      castPosted: !!castHash,
+      castHash: castHash,
+      castError: castResult.error,
+      bountyLink: bountyLink,
+      debug: {
+        hasApiKey: !!neynarApiKey,
+        apiKeyPrefix: neynarApiKey?.substring(0, 8) || 'none'
+      }
+    });
+  } catch (error: any) {
+    console.error('POST Error:', error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
