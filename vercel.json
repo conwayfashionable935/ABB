@@ -4,8 +4,8 @@
   "installCommand": "pnpm install",
   "crons": [
     {
-      "path": "/api/bots/poller",
-      "schedule": "0 0 * * *"
+      "path": "/api/poller/casts",
+      "schedule": "* * * * *"
     }
   ]
 }
