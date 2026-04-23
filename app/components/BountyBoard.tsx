@@ -5,9 +5,12 @@ import Link from 'next/link';
 
 interface Bounty {
   id: string;
-  taskDescription: string;
-  taskType: string;
-  rewardUsdc: number;
+  task: string;
+  taskDescription?: string;
+  type: string;
+  taskType?: string;
+  reward: number;
+  rewardUsdc?: number;
   status: string;
   deadlineTs: number;
   bidCount?: number;
@@ -129,7 +132,7 @@ export default function BountyBoard() {
         ))}
       </div>
 
-      <div className="space-y-2">
+<div className="space-y-2">
         {filteredBounties.slice(0, 5).map(bounty => (
           <div 
             key={bounty.id} 
@@ -138,18 +141,18 @@ export default function BountyBoard() {
             <div className="flex items-start justify-between gap-2">
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-1 mb-1">
-                  <span className="text-xs">{typeIcons[bounty.taskType] || '⚙️'}</span>
+                  <span className="text-xs">{typeIcons[bounty.type || bounty.taskType || 'custom'] || '⚙️'}</span>
                   <span className="text-[10px] text-gray-400 truncate">
                     {bounty.id}
                   </span>
                 </div>
                 <div className="text-[10px] font-medium text-gray-900 truncate">
-                  {bounty.taskDescription}
+                  {bounty.task || bounty.taskDescription || 'No description'}
                 </div>
               </div>
               <div className="text-right">
                 <div className="text-xs font-bold text-cyan-600">
-                  {bounty.rewardUsdc} USDC
+                  {bounty.reward || bounty.rewardUsdc || 0} USDC
                 </div>
                 <span className={`inline-block px-1.5 py-0.5 text-[8px] rounded-full ${
                   statusColors[bounty.status] || 'bg-gray-100 text-gray-800'

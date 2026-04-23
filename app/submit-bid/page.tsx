@@ -1,31 +1,35 @@
 'use client';
 
 import { useEffect, useState, useRef } from 'react';
-import { useSearchParams } from 'next/navigation';
-import Link from 'next/link';
+import { useSearchParams, useRouter } from 'next/navigation';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface Bounty {
   id: string;
-  taskDescription: string;
-  taskType: string;
-  rewardUsdc: number;
+  task: string;
+  taskDescription?: string;
+  type: string;
+  reward: number;
+  rewardUsdc?: number;
   status: string;
+  posterUsername: string;
+  deadlineTs: number;
 }
 
-export default function SubmitBid() {
+export default function SubmitBidPage() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const bountyId = searchParams.get('bountyId');
   
   const [bounty, setBounty] = useState<Bounty | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
+  const [user, setUser] = useState<{fid: number; username: string} | null>(null);
   const sdkRef = useRef<any>(null);
   
   const [proposal, setProposal] = useState('');
   const [priceUsdc, setPriceUsdc] = useState('');
-  const [agentFid, setAgentFid] = useState<number>(0);
-  const [agentUsername, setAgentUsername] = useState('');
 
   useEffect(() => {
     async function initSDK() {
@@ -34,15 +38,13 @@ export default function SubmitBid() {
         await miniappSdk.actions.ready();
         const ctx = await miniappSdk.context;
         if (ctx?.user) {
-          setAgentFid(ctx.user.fid);
-          setAgentUsername(ctx.user.username || '');
+          setUser({ fid: ctx.user.fid, username: ctx.user.username || '' });
         }
         sdkRef.current = miniappSdk;
-      } catch (error) {
-        console.log('SDK init error:', error);
+      } catch (e) {
+        console.log('SDK init error:', e);
       }
     }
-    
     initSDK();
   }, []);
 
@@ -54,6 +56,7 @@ export default function SubmitBid() {
       .then(data => {
         if (data.bounty) {
           setBounty(data.bounty);
+          setPriceUsdc(String(data.bounty.reward || data.bounty.rewardUsdc || 1));
         }
         setLoading(false);
       })
@@ -71,8 +74,8 @@ export default function SubmitBid() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           bountyId,
-          agentFid: agentFid || 1234,
-          agentUsername: agentUsername || 'anonymous',
+          agentFid: user?.fid || 0,
+          agentUsername: user?.username || 'anonymous',
           proposal,
           priceUsdc: parseFloat(priceUsdc),
         }),
@@ -84,86 +87,125 @@ export default function SubmitBid() {
     setSubmitting(false);
   };
 
-  if (done) {
-    return (
-      <div className="min-h-screen bg-[#f8f9fa] p-4 max-w-md mx-auto">
-        <div className="text-center py-12">
-          <div className="text-4xl mb-4">✅</div>
-          <div className="text-lg font-bold text-gray-900">Bid Submitted!</div>
-          <div className="text-sm text-gray-500 mt-2">The bounty poster will review your bid.</div>
-          <Link href="/app" className="inline-block mt-6 bg-cyan-600 text-white px-4 py-2 rounded-lg text-sm">
-            Back to Bounties
-          </Link>
-        </div>
-      </div>
-    );
-  }
-
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#f8f9fa] p-4 max-w-md mx-auto flex items-center justify-center">
-        <div className="text-gray-500">Loading...</div>
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <motion.div 
+          animate={{ rotate: 360 }}
+          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+          className="w-6 h-6 border-2 border-cyan-400 border-t-transparent rounded-full"
+        />
       </div>
     );
   }
 
   if (!bounty) {
     return (
-      <div className="min-h-screen bg-[#f8f9fa] p-4 max-w-md mx-auto flex items-center justify-center">
-        <div className="text-gray-500">Bounty not found</div>
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <div className="text-white/60 text-sm">Bounty not found</div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#f8f9fa] p-4 max-w-md mx-auto">
-      <div className="flex items-center justify-between mb-4">
-        <Link href="/app" className="text-sm text-cyan-600 hover:underline">← Back</Link>
-        <span className="font-bold text-sm">Submit Bid</span>
-        <div className="w-12" />
-      </div>
-
-      <div className="bg-white border border-gray-200 rounded-lg p-4 mb-4">
-        <div className="text-[10px] text-gray-400 mb-1">{bounty.id}</div>
-        <div className="text-sm font-medium">{bounty.taskDescription}</div>
-        <div className="text-xs text-cyan-600 mt-2">Reward: {bounty.rewardUsdc} USDC</div>
-      </div>
-
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div>
-          <label className="block text-xs font-medium mb-1">Your Proposal</label>
-          <textarea
-            value={proposal}
-            onChange={(e) => setProposal(e.target.value)}
-            placeholder="Describe how you'll complete this task..."
-            className="w-full p-3 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500"
-            rows={4}
-            required
-          />
-        </div>
-        
-        <div>
-          <label className="block text-xs font-medium mb-1">Your Price (USDC)</label>
-          <input
-            type="number"
-            step="0.01"
-            min="0.01"
-            value={priceUsdc}
-            onChange={(e) => setPriceUsdc(e.target.value)}
-            placeholder={String(bounty.rewardUsdc)}
-            className="w-full p-3 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500"
-            required
-          />
+    <div className="min-h-screen bg-black text-white">
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="p-4 pb-8"
+      >
+        <div className="flex items-center gap-3 mb-6">
+          <button onClick={() => router.back()} className="text-white/60 hover:text-white">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M19 12H5M12 19l-7-7 7-7"/>
+            </svg>
+          </button>
+          <span className="text-xs text-white/40 uppercase tracking-widest">Submit Bid</span>
         </div>
 
-        <button
-          type="submit"
-          disabled={submitting}
-          className="w-full bg-cyan-600 text-white py-3 rounded-lg font-medium disabled:opacity-50"
-        >
-          {submitting ? 'Submitting...' : 'Submit Bid'}
-        </button>
-      </form>
+        <AnimatePresence mode="wait">
+          {done ? (
+            <motion.div
+              key="success"
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="text-center py-12"
+            >
+              <motion.div 
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ type: 'spring', delay: 0.2 }}
+                className="w-16 h-16 bg-cyan-500/20 rounded-full flex items-center justify-center mx-auto mb-4"
+              >
+                <span className="text-2xl">✓</span>
+              </motion.div>
+              <div className="text-lg font-medium mb-2">Bid Submitted!</div>
+              <div className="text-sm text-white/40 mb-6">The poster will review your proposal</div>
+              <button 
+                onClick={() => router.push('/app')}
+                className="bg-white text-black px-6 py-3 rounded-xl text-sm font-medium"
+              >
+                Back to Bounties
+              </button>
+            </motion.div>
+          ) : (
+            <motion.div
+              key="form"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+            >
+              <div className="bg-white/5 border border-white/10 rounded-2xl p-5 mb-6">
+                <div className="text-xs text-white/40 mb-2">{bounty.id}</div>
+                <div className="text-base font-medium mb-3">{bounty.task || bounty.taskDescription}</div>
+                <div className="flex items-center justify-between">
+                  <span className="text-xl font-bold text-cyan-400">{bounty.reward || bounty.rewardUsdc} USDC</span>
+                  <span className="text-xs text-white/40">reward</span>
+                </div>
+              </div>
+
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div>
+                  <label className="block text-xs text-white/40 mb-2 uppercase tracking-wider">Your Proposal</label>
+                  <textarea
+                    value={proposal}
+                    onChange={(e) => setProposal(e.target.value)}
+                    placeholder="Describe how you'll complete this task..."
+                    className="w-full bg-white/5 border border-white/10 rounded-xl p-4 text-sm text-white placeholder-white/30 resize-none"
+                    rows={4}
+                    required
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-xs text-white/40 mb-2 uppercase tracking-wider">Your Price</label>
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="number"
+                      step={0.1}
+                      min={0.1}
+                      value={priceUsdc}
+                      onChange={(e) => setPriceUsdc(e.target.value)}
+                      className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white"
+                      required
+                    />
+                    <span className="text-sm text-white/60">USDC</span>
+                  </div>
+                </div>
+
+                <motion.button
+                  whileTap={{ scale: 0.98 }}
+                  type="submit"
+                  disabled={submitting}
+                  className="w-full bg-cyan-500 text-black font-medium py-4 rounded-xl text-sm mt-4"
+                >
+                  {submitting ? 'Submitting...' : 'Submit Bid'}
+                </motion.button>
+              </form>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </motion.div>
     </div>
   );
 }

@@ -13,36 +13,35 @@ function getRedisConfig() {
 }
 
 async function postCastToFarcaster(text: string): Promise<{hash: string | null, error?: string}> {
-  const neynarApiKey = process.env.NEYNAR_API_KEY || '';
+  let neynarApiKey = process.env.NEYNAR_API_KEY || '';
   const signerUuid = process.env.BOUNTY_POSTER_SIGNER_UUID || '';
   
-  console.log('[bounties] API Key:', neynarApiKey ? 'exists' : 'MISSING');
-  console.log('[bounties] Signer UUID:', signerUuid ? 'exists' : 'MISSING');
+  // Sanitize API key - remove invalid HTTP header characters
+  neynarApiKey = neynarApiKey.replace(/[^\x20-\x7E]/g, '').trim();
   
   if (!neynarApiKey || !signerUuid) {
     return { hash: null, error: 'Missing NEYNAR_API_KEY or BOUNTY_POSTER_SIGNER_UUID' };
   }
   
   try {
-    const { NeynarAPIClient } = await import('@neynar/nodejs-sdk');
+    const axios = (await import('axios')).default;
     
-    // Try using the client with explicit API key in constructor
-    const neynar = new NeynarAPIClient({ 
-      apiKey: neynarApiKey 
-    });
+    const response = await axios.post(
+      'https://api.neynar.com/v2/cast',
+      {
+        signer_uuid: signerUuid,
+        text: text,
+      },
+      { headers: { 'x-api-key': neynarApiKey } }
+    );
     
-    console.log('[bounties] Publishing cast:', text.slice(0, 50));
-    const result = await (neynar as any).publishCast(signerUuid, text, {});
-    console.log('[bounties] Result:', JSON.stringify(result).slice(0, 200));
-    
-    if (result?.hash) {
-      return { hash: result.hash };
+    if (response.data?.hash) {
+      return { hash: response.data.hash };
     } else {
-      return { hash: null, error: result?.message || 'No hash returned' };
+      return { hash: null, error: response.data?.message || 'No hash returned' };
     }
   } catch (error: any) {
-    console.error('[bounties] Error:', error.message || String(error));
-    return { hash: null, error: error.message || String(error) };
+    return { hash: null, error: error.response?.data?.message || error.message || String(error) };
   }
 }
 
@@ -51,11 +50,11 @@ export async function GET() {
     const config = getRedisConfig();
     const redisUrl = config.url?.trim() || '';
     const redisToken = config.token?.trim() || '';
-    
+
     if (!redisUrl || !redisToken) {
       return NextResponse.json({ error: 'Redis not configured' }, { status: 503 });
     }
-
+    
     const redis = new Redis({ url: redisUrl, token: redisToken });
     
     // Get all bounty IDs - smembers returns string[]
@@ -74,10 +73,14 @@ export async function GET() {
     for (const bountyId of bountyIdsArray) {
       const data = await redis.get('bounty:' + bountyId);
       if (data) {
-        try {
-          bounties.push(JSON.parse(data as string));
-        } catch {
-          // Skip invalid JSON
+        // Upstash Redis auto-parses JSON, so data is already an object
+        if (typeof data === 'object') {
+          bounties.push(data as any);
+        } else {
+          // Fallback for string data
+          try {
+            bounties.push(JSON.parse(data as string));
+          } catch { /* skip */ }
         }
       }
     }
@@ -87,10 +90,12 @@ export async function GET() {
     const activities: any[] = [];
     if (activityData && Array.isArray(activityData)) {
       for (const item of activityData) {
-        try {
-          activities.push(JSON.parse(item as string));
-        } catch {
-          // Skip invalid JSON
+        if (typeof item === 'object') {
+          activities.push(item as any);
+        } else {
+          try {
+            activities.push(JSON.parse(item as string));
+          } catch { /* skip */ }
         }
       }
     }

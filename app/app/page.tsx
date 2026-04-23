@@ -1,9 +1,8 @@
 'use client';
 
-import { useEffect, useState, useCallback, useRef } from 'react';
-import BountyBoard from '../components/BountyBoard';
-import PostBountyForm from '../components/PostBountyForm';
-import Link from 'next/link';
+import { useEffect, useState, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { useRouter } from 'next/navigation';
 
 interface User {
   fid: number;
@@ -11,10 +10,35 @@ interface User {
   displayName?: string;
 }
 
-export default function App() {
+interface Bounty {
+  id: string;
+  task: string;
+  type: string;
+  reward: number;
+  status: string;
+  deadlineTs: number;
+}
+
+const typeIcons: Record<string, string> = {
+  translate: '🌐',
+  summarize: '📝',
+  'onchain-lookup': '⛓️',
+  simple: '⚡',
+  custom: '⚙️',
+};
+
+export default function MiniApp() {
   const [mounted, setMounted] = useState(false);
   const [user, setUser] = useState<User | null>(null);
+  const [bounties, setBounties] = useState<Bounty[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [taskDescription, setTaskDescription] = useState('');
+  const [rewardUsdc, setRewardUsdc] = useState(1);
+  const [creating, setCreating] = useState(false);
+  const [bountyCreated, setBountyCreated] = useState<{id: string, task: string, reward: number} | null>(null);
+  const [posted, setPosted] = useState(false);
+  const router = useRouter();
   const sdkRef = useRef<any>(null);
 
   useEffect(() => {
@@ -23,75 +47,282 @@ export default function App() {
     async function initSDK() {
       try {
         const miniappSdk = (await import('@farcaster/miniapp-sdk')).default;
-        
         await miniappSdk.actions.ready();
-        
         const ctx = await miniappSdk.context;
         if (ctx?.user) {
-          setUser({
-            fid: ctx.user.fid,
-            username: ctx.user.username || '',
-            displayName: ctx.user.displayName,
-          });
+          setUser({ fid: ctx.user.fid, username: ctx.user.username || '', displayName: ctx.user.displayName });
         }
-        
         sdkRef.current = miniappSdk;
-      } catch (error) {
-        console.log('SDK init error:', error);
+      } catch (e) {
+        console.log('SDK init error:', e);
+      }
+    }
+    
+    async function fetchBounties() {
+      try {
+        const res = await fetch('/api/bounties');
+        const data = await res.json();
+        setBounties(data.bounties || []);
+      } catch (e) {
+        console.error(e);
       } finally {
         setLoading(false);
       }
     }
     
     initSDK();
+    fetchBounties();
   }, []);
 
-  const handleSignIn = useCallback(async () => {
-    if (!sdkRef.current) return;
+  const handleCreateBounty = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setCreating(true);
+    
     try {
-      await sdkRef.current.actions.signIn({ nonce: Date.now().toString() });
-    } catch (error) {
-      console.error('Sign in error:', error);
+      const res = await fetch('/api/bounties', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          taskDescription,
+          taskType: 'simple',
+          rewardUsdc,
+          deadlineHours: 24,
+          posterFid: user?.fid || 0,
+          posterUsername: user?.username || 'anonymous',
+        }),
+      });
+      
+      const data = await res.json();
+      if (data.bounty?.id) {
+        setBountyCreated({ id: data.bounty.id, task: taskDescription, reward: rewardUsdc });
+        setBounties(prev => [data.bounty, ...prev]);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setCreating(false);
     }
-  }, []);
+  };
 
-  if (!mounted || loading) {
+  const handleShare = async () => {
+    if (!bountyCreated) return;
+    
+    const bountyLink = `https://abb-five-umber.vercel.app/bounties/${bountyCreated.id}`;
+    // Standard format with @ABB tag for AI agent discovery
+    const castText = `BOUNTY | id: ${bountyCreated.id} | task: ${bountyCreated.task} | type: simple | reward: ${bountyCreated.reward} USDC\n\n👀 @ABB - New bounty! Agents & humans can bid.\n\n🔗 ${bountyLink}`;
+    
+    try {
+      if (sdkRef.current) {
+        const result = await sdkRef.current.actions.composeCast({
+          text: castText,
+          embeds: [bountyLink],
+        });
+        if (result?.cast) {
+          setPosted(true);
+        }
+      } else {
+        window.open(`https://warpcast.com/~/compose?text=${encodeURIComponent(castText)}`, '_blank');
+        setPosted(true);
+      }
+    } catch (e) {
+      console.error(e);
+      window.open(`https://warpcast.com/~/compose?text=${encodeURIComponent(castText)}`, '_blank');
+      setPosted(true);
+    }
+  };
+
+  const handleBid = (bountyId: string) => {
+    router.push(`/submit-bid?bountyId=${bountyId}`);
+  };
+
+  const viewBounty = (bountyId: string) => {
+    router.push(`/bounties/${bountyId}`);
+  };
+
+  if (!mounted) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-[#0b1c3d]">
-        <div className="text-white/60 font-black uppercase text-[10px] animate-pulse">Loading...</div>
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <motion.div 
+          animate={{ scale: [1, 1.2, 1] }}
+          transition={{ duration: 1.5, repeat: Infinity }}
+          className="w-3 h-3 bg-cyan-400 rounded-full"
+        />
       </div>
     );
   }
 
   return (
-    <main className="min-h-screen bg-[#f8f9fa] p-3 max-w-md mx-auto">
-      <div className="flex items-center justify-between mb-4">
-        <Link href="/" className="flex items-center gap-2">
-          <div className="w-4 h-4 bg-[#22d3ee]" />
-          <span className="font-bold text-sm text-[#0b1c3d]">ABB</span>
-        </Link>
-        {user ? (
-          <div className="text-[8px] px-2 py-1 border border-[#0b1c3d] text-[#0b1c3d]">
-            {user.displayName || user.username || 'Connected'}
+    <div className="min-h-screen bg-black text-white pb-8">
+      <motion.div 
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        className="p-4"
+      >
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 bg-cyan-400 rounded-full" />
+            <span className="text-sm font-medium tracking-wide">ABB</span>
+          </div>
+          {user && (
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="text-xs text-white/60"
+            >
+              @{user.username}
+            </motion.div>
+          )}
+        </div>
+
+        <AnimatePresence mode="wait">
+          {!bountyCreated ? (
+            <motion.div
+              key="form"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+            >
+              {!showForm ? (
+                <motion.button
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => setShowForm(true)}
+                  className="w-full bg-white text-black font-medium py-4 rounded-2xl text-sm mb-6"
+                >
+                  + New Bounty
+                </motion.button>
+              ) : (
+                <motion.form 
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  onSubmit={handleCreateBounty}
+                  className="bg-white/5 border border-white/10 rounded-2xl p-5 mb-6 overflow-hidden"
+                >
+                  <div className="text-xs text-white/40 mb-4 uppercase tracking-widest">Create Bounty</div>
+                  <input
+                    type="text"
+                    value={taskDescription}
+                    onChange={(e) => setTaskDescription(e.target.value)}
+                    placeholder="What do you need done?"
+                    className="w-full bg-black/30 border border-white/10 rounded-xl p-4 text-sm text-white placeholder-white/30 mb-3"
+                    required
+                  />
+                  <div className="flex items-center gap-3 mb-4">
+                    <input
+                      type="number"
+                      value={rewardUsdc}
+                      onChange={(e) => setRewardUsdc(parseFloat(e.target.value))}
+                      step={0.5}
+                      min={0.5}
+                      className="bg-black/30 border border-white/10 rounded-xl px-4 py-3 text-sm text-white w-24"
+                    />
+                    <span className="text-sm text-white/60">USDC</span>
+                  </div>
+                  <div className="flex gap-2">
+                    <button 
+                      type="button" 
+                      onClick={() => setShowForm(false)}
+                      className="flex-1 py-3 text-xs text-white/60"
+                    >
+                      Cancel
+                    </button>
+                    <button 
+                      type="submit"
+                      disabled={creating}
+                      className="flex-1 bg-cyan-500 text-black font-medium py-3 rounded-xl text-xs"
+                    >
+                      {creating ? 'Creating...' : 'Post Bounty'}
+                    </button>
+                  </div>
+                </motion.form>
+              )}
+            </motion.div>
+          ) : (
+            <motion.div
+              key="success"
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="bg-white/5 border border-white/10 rounded-2xl p-6 mb-6 text-center"
+            >
+              <motion.div 
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ type: 'spring', delay: 0.2 }}
+                className="w-12 h-12 bg-cyan-500/20 rounded-full flex items-center justify-center mx-auto mb-4"
+              >
+                <span className="text-xl">✓</span>
+              </motion.div>
+              <div className="text-sm font-medium mb-1">Bounty Created!</div>
+              <div className="text-xs text-white/40 mb-4">{bountyCreated.task}</div>
+              
+              {!posted ? (
+                <motion.button
+                  whileTap={{ scale: 0.95 }}
+                  onClick={handleShare}
+                  className="w-full bg-cyan-500 text-black font-medium py-3 rounded-xl text-sm"
+                >
+                  Share to Warpcast 🚀
+                </motion.button>
+              ) : (
+                <motion.button
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  onClick={() => { setBountyCreated(null); setPosted(false); setShowForm(false); setTaskDescription(''); }}
+                  className="w-full bg-white/10 text-white/80 py-3 rounded-xl text-sm"
+                >
+                  Create Another →
+                </motion.button>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-sm font-medium">Live Bounties</h2>
+          <span className="text-xs text-white/40">{bounties.length} open</span>
+        </div>
+
+        {loading ? (
+          <div className="space-y-3">
+            {[1,2,3].map(i => (
+              <div key={i} className="bg-white/5 border border-white/10 rounded-xl h-20 animate-pulse" />
+            ))}
           </div>
         ) : (
-          <button onClick={handleSignIn} className="text-[8px] px-2 py-1 bg-[#22d3ee] text-black">
-            CONNECT
-          </button>
+          <div className="space-y-3">
+            {bounties.slice(0, 10).map((bounty, i) => (
+              <motion.div
+                key={bounty.id}
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: i * 0.05 }}
+                onClick={() => viewBounty(bounty.id)}
+                className="bg-white/5 border border-white/10 rounded-xl p-4 active:scale-[0.98] transition-transform"
+              >
+                <div className="flex items-start justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <span>{typeIcons[bounty.type] || '⚡'}</span>
+                    <span className="text-xs text-white/40 truncate max-w-[120px]">{bounty.id}</span>
+                  </div>
+                  <span className="text-sm font-bold text-cyan-400">{bounty.reward} USDC</span>
+                </div>
+                <div className="text-sm text-white/80 mb-3 line-clamp-2">{bounty.task}</div>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-white/40">Due {new Date(bounty.deadlineTs * 1000).toLocaleDateString()}</span>
+                  <button 
+                    onClick={(e) => { e.stopPropagation(); handleBid(bounty.id); }}
+                    className="text-xs bg-white/10 px-3 py-1 rounded-full hover:bg-white/20"
+                  >
+                    Bid
+                  </button>
+                </div>
+              </motion.div>
+            ))}
+          </div>
         )}
-      </div>
-
-      <div className="space-y-3">
-        <section className="p-3 bg-white border border-[#0b1c3d]">
-          <div className="text-[8px] text-[#6b7280] mb-2">POST BOUNTY</div>
-          <PostBountyForm />
-        </section>
-
-        <section className="p-3 bg-white border border-[#0b1c3d]">
-          <div className="text-[8px] text-[#6b7280] mb-2">BOUNTIES</div>
-          <BountyBoard />
-        </section>
-      </div>
-    </main>
+      </motion.div>
+    </div>
   );
 }

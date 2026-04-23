@@ -1,76 +1,41 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { Redis } from '@upstash/redis';
 
 export const dynamic = 'force-dynamic';
 
-async function getBountyFromRedis(id: string): Promise<any | null> {
-  const url = process.env.UPSTASH_REDIS_REST_URL;
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
-  if (!url || !token) return null;
-  try {
-    const { Redis } = await import('@upstash/redis');
-    const redis = new Redis({ url: url.trim(), token: token.trim() });
-    const data = await redis.get(`bounty:${id}`);
-    return data ? JSON.parse(data as string) : null;
-  } catch (error) {
-    console.error('[api/bounties/[id]] Redis error:', error);
-    return null;
-  }
-}
-
-async function updateBountyInRedis(bounty: any): Promise<void> {
-  const url = process.env.UPSTASH_REDIS_REST_URL;
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
-  if (!url || !token) return;
-  try {
-    const { Redis } = await import('@upstash/redis');
-    const redis = new Redis({ url: url.trim(), token: token.trim() });
-    await redis.set(`bounty:${bounty.id}`, JSON.stringify(bounty));
-  } catch (error) {
-    console.error('[api/bounties/[id]] Update error:', error);
-  }
-}
-
-async function listBidsForBounty(bountyId: string): Promise<any[]> {
-  const url = process.env.UPSTASH_REDIS_REST_URL;
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
-  if (!url || !token) return [];
-  try {
-    const { Redis } = await import('@upstash/redis');
-    const redis = new Redis({ url: url.trim(), token: token.trim() });
-    const ids = await redis.smembers(`bounty:${bountyId}:bids`);
-    const bids: any[] = [];
-    for (const id of ids) {
-      const data = await redis.get(`bid:${id}`);
-      if (data) bids.push(JSON.parse(data as string));
-    }
-    return bids.sort((a, b) => a.createdAt - b.createdAt);
-  } catch (error) {
-    console.error('[api/bounties/[id]] Bids error:', error);
-    return [];
-  }
+function getRedisConfig() {
+  return {
+    url: process.env.UPSTASH_REDIS_REST_URL?.trim(),
+    token: process.env.UPSTASH_REDIS_REST_TOKEN?.trim()
+  };
 }
 
 export async function GET(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  const id = params.id;
-  const bounty = await getBountyFromRedis(id);
-  
-  if (!bounty) {
-    return NextResponse.json({ error: 'Bounty not found' }, { status: 404 });
+  try {
+    const config = getRedisConfig();
+    if (!config.url || !config.token) {
+      return NextResponse.json({ error: 'Redis not configured' }, { status: 503 });
+    }
+
+    const redis = new Redis(config);
+    const id = params.id;
+    
+    const key = 'bounty:' + id;
+    const data = await redis.get(key);
+    
+    if (!data) {
+      return NextResponse.json({ error: 'Bounty not found', debugId: id }, { status: 404 });
+    }
+    
+    const bounty = typeof data === 'string' ? JSON.parse(data) : data;
+    return NextResponse.json({ bounty });
+  } catch (error: any) {
+    console.error('GET Error:', error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
-
-  const bids = await listBidsForBounty(id);
-  const bidCount = bids.length;
-  
-  const { searchParams } = new URL(req.url);
-  const includeBids = searchParams.get('includeBids') === 'true';
-
-  return NextResponse.json({ 
-    bounty: { ...bounty, bidCount },
-    bids: includeBids ? bids : undefined,
-  });
 }
 
 export async function PATCH(
@@ -78,14 +43,25 @@ export async function PATCH(
   { params }: { params: { id: string } }
 ) {
   try {
-    const id = params.id;
     const body = await req.json();
     const { status, winnerBidId, workerFid, workerUsername } = body;
+    const id = params.id;
 
-    const bounty = await getBountyFromRedis(id);
-    if (!bounty) {
+    const config = getRedisConfig();
+    if (!config.url || !config.token) {
+      return NextResponse.json({ error: 'Redis not configured' }, { status: 503 });
+    }
+
+    const redis = new Redis(config);
+    
+    const key = 'bounty:' + id;
+    const data = await redis.get(key);
+    
+    if (!data) {
       return NextResponse.json({ error: 'Bounty not found' }, { status: 404 });
     }
+    
+    const bounty = typeof data === 'string' ? JSON.parse(data) : data;
 
     if (status) {
       bounty.status = status;
@@ -98,11 +74,11 @@ export async function PATCH(
     }
     bounty.updatedAt = Math.floor(Date.now() / 1000);
 
-    await updateBountyInRedis(bounty);
+    await redis.set(key, JSON.stringify(bounty));
 
     return NextResponse.json({ bounty });
-  } catch (error) {
-    console.error('[api/bounties/[id]] PATCH error:', error);
-    return NextResponse.json({ error: 'Failed to update bounty' }, { status: 500 });
+  } catch (error: any) {
+    console.error('PATCH Error:', error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

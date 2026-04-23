@@ -8,3 +8,4 @@ dist
 wallet-addresses.json
 VERCEL.md
 .vercel
+.env*.local
