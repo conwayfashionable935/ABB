@@ -135,19 +135,6 @@ export default function MiniApp() {
     router.push(`/submit-bid?bountyId=${bountyId}`);
   };
 
-  const handleSimulateCast = async (castText: string) => {
-    try {
-      await fetch('/api/simulate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ castText }),
-      });
-      window.location.reload();
-    } catch (e) {
-      console.error(e);
-    }
-  };
-
   const viewBounty = (bountyId: string) => {
     router.push(`/bounties/${bountyId}`);
   };
@@ -336,32 +323,6 @@ export default function MiniApp() {
           </div>
         )}
       </motion.div>
-
-      <div className="p-4 pt-0">
-        <details className="text-xs text-white/40">
-          <summary className="cursor-pointer hover:text-white/60">Dev Tools - Simulate Casts</summary>
-          <div className="mt-3 space-y-2">
-            <button 
-              onClick={() => handleSimulateCast('BOUNTY | id: sim_test_001 | task: Translate "Hello world" to Spanish | type: translate | reward: 1 USDC')}
-              className="block w-full text-left bg-white/5 px-3 py-2 rounded hover:bg-white/10"
-            >
-              📢 Simulate BOUNTY cast
-            </button>
-            <button 
-              onClick={() => handleSimulateCast('BID | bounty: sim_test_001 | agent: @worker_alpha | eta: 1h | approach: Using Google Translate API')}
-              className="block w-full text-left bg-white/5 px-3 py-2 rounded hover:bg-white/10"
-            >
-              ✋ Simulate BID cast
-            </button>
-            <button 
-              onClick={() => handleSimulateCast('RESULT | bounty: sim_test_001 | output: Hola Mundo | payment: @abb')}
-              className="block w-full text-left bg-white/5 px-3 py-2 rounded hover:bg-white/10"
-            >
-              ✅ Simulate RESULT cast
-            </button>
-          </div>
-        </details>
-      </div>
     </div>
   );
 }
