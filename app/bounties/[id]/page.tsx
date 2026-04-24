@@ -3,6 +3,10 @@
 import { useEffect, useState, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
+import { 
+  FiGlobe, FiFileText, FiLink, FiZap, FiTarget,
+  FiCheck, FiDollarSign, FiUser, FiBell
+} from 'react-icons/fi';
 
 interface Bounty {
   id: string;
@@ -28,12 +32,12 @@ interface Bid {
   createdAt: number;
 }
 
-const typeIcons: Record<string, string> = {
-  translate: '🌐',
-  summarize: '📝',
-  'onchain-lookup': '⛓️',
-  simple: '⚡',
-  custom: '🎯',
+const typeIcons: Record<string, React.ReactNode> = {
+  translate: <FiGlobe size={20} />,
+  summarize: <FiFileText size={20} />,
+  'onchain-lookup': <FiLink size={20} />,
+  simple: <FiZap size={20} />,
+  custom: <FiTarget size={20} />,
 };
 
 const typeColors: Record<string, string> = {
@@ -44,18 +48,18 @@ const typeColors: Record<string, string> = {
   custom: 'bg-meat-pink/20 text-meat-pink',
 };
 
-const statusConfig: Record<string, { color: string; bg: string; label: string; step: number; icon: string }> = {
-  open: { color: 'text-green-400', bg: 'bg-green-500/20', label: 'Open for Bids', step: 1, icon: '📝' },
-  assigned: { color: 'text-meat-potato', bg: 'bg-meat-potato/20', label: 'Work in Progress', step: 2, icon: '⚡' },
-  completed: { color: 'text-blue-400', bg: 'bg-blue-500/20', label: 'Work Submitted', step: 3, icon: '📋' },
-  settled: { color: 'text-meat-pink', bg: 'bg-meat-pink/20', label: 'Paid', step: 4, icon: '💰' },
+const statusConfig: Record<string, { color: string; bg: string; label: string; step: number; icon: React.ReactNode }> = {
+  open: { color: 'text-green-400', bg: 'bg-green-500/20', label: 'Open for Bids', step: 1, icon: <FiFileText size={16} /> },
+  assigned: { color: 'text-meat-potato', bg: 'bg-meat-potato/20', label: 'Work in Progress', step: 2, icon: <FiZap size={16} /> },
+  completed: { color: 'text-blue-400', bg: 'bg-blue-500/20', label: 'Work Submitted', step: 3, icon: <FiCheck size={16} /> },
+  settled: { color: 'text-meat-pink', bg: 'bg-meat-pink/20', label: 'Paid', step: 4, icon: <FiDollarSign size={16} /> },
 };
 
 const workflowSteps = [
-  { step: 1, label: 'Open', icon: '📝' },
-  { step: 2, label: 'Assigned', icon: '⚡' },
-  { step: 3, label: 'Completed', icon: '📋' },
-  { step: 4, label: 'Paid', icon: '💰' },
+  { step: 1, label: 'Open', icon: <FiFileText size={14} /> },
+  { step: 2, label: 'Assigned', icon: <FiZap size={14} /> },
+  { step: 3, label: 'Completed', icon: <FiCheck size={14} /> },
+  { step: 4, label: 'Paid', icon: <FiDollarSign size={14} /> },
 ];
 
 export default function BountyDetailPage() {
@@ -235,7 +239,7 @@ export default function BountyDetailPage() {
         <div className="bg-dark-card border border-dark-border rounded-sm p-5 mb-4">
           <div className="flex items-start gap-4 mb-4">
             <div className={`w-12 h-12 rounded-sm flex items-center justify-center text-2xl ${typeColors[bounty.type] || typeColors.simple}`}>
-              {typeIcons[bounty.type] || '⚡'}
+              {typeIcons[bounty.type] || <FiZap size={24} />}
             </div>
             <div className="flex-1">
               <div className="flex items-center gap-2 mb-1">
@@ -250,7 +254,7 @@ export default function BountyDetailPage() {
           
           <div className="flex items-center justify-between pt-4 border-t border-dark-border">
             <div>
-              <div className="text-2xl font-black text-meat-potato">💰 {bounty.reward}</div>
+              <div className="text-2xl font-black text-meat-potato"><FiDollarSign className="inline" size={24} /> {bounty.reward}</div>
               <div className="text-xs text-dark-muted">USDC</div>
             </div>
             <div className="text-right">
@@ -261,7 +265,7 @@ export default function BountyDetailPage() {
         </div>
 
         <div className="bg-dark-card border border-dark-border rounded-sm p-4 mb-4">
-          <div className="text-xs text-dark-muted mb-3 uppercase tracking-widest">📊 Progress</div>
+          <div className="text-xs text-dark-muted mb-3 uppercase tracking-widest">Progress</div>
           <div className="flex items-center justify-between">
             {workflowSteps.map((s, i) => (
               <div key={s.step} className="flex items-center flex-1">
@@ -300,7 +304,7 @@ export default function BountyDetailPage() {
 
         {bounty.workerUsername && (
           <div className="bg-dark-card border border-dark-border rounded-sm p-4 mb-4">
-            <div className="text-xs text-dark-muted mb-2 uppercase tracking-widest">👤 Worker</div>
+            <div className="text-xs text-dark-muted mb-2 uppercase tracking-widest">Worker</div>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full bg-gradient-meat flex items-center justify-center text-black font-bold">
@@ -309,7 +313,7 @@ export default function BountyDetailPage() {
                 <span className="text-sm font-bold text-white">@{bounty.workerUsername}</span>
               </div>
               {bounty.status === 'settled' && (
-                <span className="text-sm text-meat-pink">✓ Paid 💰 {bounty.reward} USDC</span>
+                <span className="text-sm text-meat-pink"><FiCheck className="inline" size={14} /> Paid <FiDollarSign className="inline" size={14} /> {bounty.reward} USDC</span>
               )}
             </div>
           </div>
@@ -327,12 +331,12 @@ export default function BountyDetailPage() {
             onClick={() => router.push(`/settle?bountyId=${bounty.id}`)}
             className="w-full bg-gradient-meat text-black font-bold py-3 rounded-sm text-sm mb-4 glow-warm flex items-center justify-center gap-2"
           >
-            💰 Submit Work & Get Paid
+            <FiDollarSign className="inline" size={14} /> Submit Work & Get Paid
           </button>
         )}
 
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-sm font-bold uppercase tracking-wide text-white">✋ Bids ({bids.length})</h2>
+          <h2 className="text-sm font-bold uppercase tracking-wide text-white">Bids ({bids.length})</h2>
         </div>
 
         <AnimatePresence>
@@ -351,11 +355,11 @@ export default function BountyDetailPage() {
                   <span className="text-sm font-bold text-white">@{bid.agentUsername}</span>
                   {bid.status === 'accepted' && (
                     <span className="text-[10px] bg-meat-pink/20 text-meat-pink px-2 py-0.5 rounded-sm">
-                      ✨ Selected
+                      <FiCheck className="inline" size={10} /> Selected
                     </span>
                   )}
                 </div>
-                <span className="text-sm font-black text-meat-potato">💰 {bid.priceUsdc} USDC</span>
+                <span className="text-sm font-black text-meat-potato"><FiDollarSign className="inline" size={14} /> {bid.priceUsdc} USDC</span>
               </div>
               <p className="text-xs text-dark-muted mb-2">{bid.proposal}</p>
               {bounty.status === 'open' && user?.fid === bounty.posterFid && bid.status !== 'accepted' && (
@@ -368,7 +372,7 @@ export default function BountyDetailPage() {
                 </button>
               )}
               {bid.status === 'accepted' && (
-                <span className="text-xs text-meat-pink">✓ Accepted - Working on this</span>
+                <span className="text-xs text-meat-pink"><FiCheck className="inline" size={12} /> Accepted - Working on this</span>
               )}
             </motion.div>
           ))}

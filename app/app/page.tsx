@@ -3,6 +3,10 @@
 import { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
+import { 
+  FiGlobe, FiFileText, FiLink, FiZap, FiTarget,
+  FiDollarSign, FiCheck, FiBell, FiEye, FiUser 
+} from 'react-icons/fi';
 
 interface User {
   fid: number;
@@ -20,12 +24,12 @@ interface Bounty {
   workerUsername?: string;
 }
 
-const typeIcons: Record<string, string> = {
-  translate: '🌐',
-  summarize: '📝',
-  'onchain-lookup': '⛓️',
-  simple: '⚡',
-  custom: '🎯',
+const typeIcons: Record<string, React.ReactNode> = {
+  translate: <FiGlobe size={14} />,
+  summarize: <FiFileText size={14} />,
+  'onchain-lookup': <FiLink size={14} />,
+  simple: <FiZap size={14} />,
+  custom: <FiTarget size={14} />,
 };
 
 const typeColors: Record<string, string> = {
@@ -233,7 +237,7 @@ export default function MiniApp() {
                         >
                           <div className="flex items-start gap-3 mb-3">
                             <div className={`w-10 h-10 rounded-sm flex items-center justify-center text-xl ${typeColors[bounty.type] || typeColors.simple}`}>
-                              {typeIcons[bounty.type] || '⚡'}
+                              {typeIcons[bounty.type] || <FiZap size={20} />}
                             </div>
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2 mb-1">
@@ -247,7 +251,7 @@ export default function MiniApp() {
                           </div>
                           <div className="flex items-center justify-between pl-13">
                             <div className="flex items-center gap-3">
-                              <span className="text-sm font-bold text-meat-potato">💰 {bounty.reward} USDC</span>
+                              <span className="text-sm font-bold text-meat-potato"><FiDollarSign className="inline" size={14} /> {bounty.reward} USDC</span>
                               {bounty.status === 'assigned' && bounty.workerUsername && (
                                 <span className="text-xs text-dark-muted">→ @{bounty.workerUsername}</span>
                               )}
@@ -329,7 +333,7 @@ export default function MiniApp() {
               </motion.div>
               <div className="text-sm font-bold mb-1 text-white">Bounty Created!</div>
               <div className="text-xs text-dark-muted mb-4">{bountyCreated.task}</div>
-              <div className="text-lg font-black text-meat-potato mb-4">💰 {bountyCreated.reward} USDC</div>
+              <div className="text-lg font-black text-meat-potato mb-4"><FiDollarSign className="inline" size={18} /> {bountyCreated.reward} USDC</div>
               
               {posted && (
                 <div className="text-xs text-green-400 mb-4">✓ Posted to Warpcast</div>
