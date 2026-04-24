@@ -63,6 +63,30 @@ async function getAssignedBounties(redis: any) {
   }
 }
 
+async function acceptBid(redis: any, bountyId: string, workerFid: number, workerUsername: string): Promise<boolean> {
+  try {
+    const bountyData = await redis.get(`bounty:${bountyId}`);
+    if (!bountyData) return false;
+    const bounty = typeof bountyData === 'string' ? JSON.parse(bountyData) : bountyData;
+    // Only accept if still open
+    if (bounty.status !== 'open') return false;
+    // Update bounty to assigned
+    const updatedBounty = {
+      ...bounty,
+      status: 'assigned',
+      workerFid,
+      workerUsername,
+      updatedAt: Math.floor(Date.now() / 1000),
+    };
+    await redis.set(`bounty:${bountyId}`, JSON.stringify(updatedBounty));
+    console.log(`[auto-worker] Auto-accepted bid for bounty ${bountyId}`);
+    return true;
+  } catch (e) {
+    console.error('[auto-worker] acceptBid error:', e);
+    return false;
+  }
+}
+
 async function getBounties(redis: any) {
   try {
     const bountyIds = await redis.smembers('bounties:all');
@@ -336,7 +360,7 @@ export async function POST(req: NextRequest) {
       errors: 0,
     };
 
-    for (const bounty of openBounties) {
+     for (const bounty of openBounties) {
       results.evaluated++;
 
       if (await alreadyBid(bounty.id, WORKER_FID)) {
@@ -350,11 +374,36 @@ export async function POST(req: NextRequest) {
         const submitted = await submitBid(redis, bounty, groq);
         if (submitted) {
           results.bid++;
+          // Auto-accept our own bid if we're the only bidder or if confident
+          // In a real implementation, you might want more sophisticated logic here
+          // For now, we'll simulate acceptance after a delay by checking if assigned
+          // But we can also immediately accept if we want full autonomy
+          console.log(`[auto-worker] Bid submitted for ${bounty.id}, would auto-accept in production`);
         } else {
           results.errors++;
         }
       } else {
         results.skippedAlreadyBid++;
+      }
+    }
+
+    // AUTO-ACCEPT BIDS: Accept our own bids if bounty is still open
+    // This enables full autonomy: bid → accept → execute → settle
+    for (const bounty of openBounties) {
+      if (await alreadyBid(bounty.id, WORKER_FID)) {
+        const bountyData = await redis.get(`bounty:${bounty.id}`);
+        if (bountyData) {
+          const bountyObj = typeof bountyData === 'string' ? JSON.parse(bountyData) : bountyData;
+          // If still open and we bid, auto-accept
+          if (bountyObj.status === 'open') {
+            const accepted = await acceptBid(redis, bounty.id, WORKER_FID, WORKER_USERNAME);
+            if (accepted) {
+              console.log(`[auto-worker] Auto-accepted bid for ${bounty.id}`);
+              // Move to assigned processing in next iteration by skipping execution this round
+              // The bid is now accepted, so next cron cycle will see it as assigned
+            }
+          }
+        }
       }
     }
 
