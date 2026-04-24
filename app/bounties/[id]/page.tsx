@@ -3,9 +3,10 @@
 import { useEffect, useState, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
+import Link from 'next/link';
 import { 
   FiGlobe, FiFileText, FiLink, FiZap, FiTarget,
-  FiCheck, FiDollarSign, FiUser, FiBell
+  FiCheck, FiDollarSign, FiUser, FiArrowLeft, FiClock, FiShield
 } from 'react-icons/fi';
 
 interface Bounty {
@@ -33,34 +34,21 @@ interface Bid {
 }
 
 const typeIcons: Record<string, React.ReactNode> = {
-  translate: <FiGlobe size={20} />,
-  summarize: <FiFileText size={20} />,
-  'onchain-lookup': <FiLink size={20} />,
-  simple: <FiZap size={20} />,
-  custom: <FiTarget size={20} />,
+  translate: <FiGlobe size={24} />,
+  summarize: <FiFileText size={24} />,
+  'onchain-lookup': <FiLink size={24} />,
+  simple: <FiZap size={24} />,
+  custom: <FiTarget size={24} />,
 };
 
-const typeColors: Record<string, string> = {
-  translate: 'bg-blue-500/20 text-blue-400',
-  summarize: 'bg-purple-500/20 text-purple-400',
-  'onchain-lookup': 'bg-yellow-500/20 text-yellow-400',
-  simple: 'bg-meat-potato/20 text-meat-potato',
-  custom: 'bg-meat-pink/20 text-meat-pink',
+const statusConfig: Record<string, { color: string; bg: string; label: string; step: number }> = {
+  open: { color: '#34C759', bg: 'bg-[#34C759]/15', label: 'Open', step: 1 },
+  assigned: { color: '#FF9500', bg: 'bg-[#FF9500]/15', label: 'In Progress', step: 2 },
+  completed: { color: '#007AFF', bg: 'bg-[#007AFF]/15', label: 'Completed', step: 3 },
+  settled: { color: '#AF52DE', bg: 'bg-[#AF52DE]/15', label: 'Paid', step: 4 },
 };
 
-const statusConfig: Record<string, { color: string; bg: string; label: string; step: number; icon: React.ReactNode }> = {
-  open: { color: 'text-green-400', bg: 'bg-green-500/20', label: 'Open for Bids', step: 1, icon: <FiFileText size={16} /> },
-  assigned: { color: 'text-meat-potato', bg: 'bg-meat-potato/20', label: 'Work in Progress', step: 2, icon: <FiZap size={16} /> },
-  completed: { color: 'text-blue-400', bg: 'bg-blue-500/20', label: 'Work Submitted', step: 3, icon: <FiCheck size={16} /> },
-  settled: { color: 'text-meat-pink', bg: 'bg-meat-pink/20', label: 'Paid', step: 4, icon: <FiDollarSign size={16} /> },
-};
-
-const workflowSteps = [
-  { step: 1, label: 'Open', icon: <FiFileText size={14} /> },
-  { step: 2, label: 'Assigned', icon: <FiZap size={14} /> },
-  { step: 3, label: 'Completed', icon: <FiCheck size={14} /> },
-  { step: 4, label: 'Paid', icon: <FiDollarSign size={14} /> },
-];
+const steps = ['Open', 'Assigned', 'Completed', 'Paid'];
 
 export default function BountyDetailPage() {
   const params = useParams();
@@ -75,7 +63,6 @@ export default function BountyDetailPage() {
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [user, setUser] = useState<{fid: number; username: string} | null>(null);
-  const sdkRef = useRef<any>(null);
 
   useEffect(() => {
     async function init() {
@@ -86,7 +73,6 @@ export default function BountyDetailPage() {
         if (ctx?.user) {
           setUser({ fid: ctx.user.fid, username: ctx.user.username || '' });
         }
-        sdkRef.current = miniappSdk;
       } catch (e) {
         console.log('SDK not available');
       }
@@ -157,7 +143,7 @@ export default function BountyDetailPage() {
     if (!user || user.fid !== bounty?.posterFid) return;
     setSubmitting(true);
     try {
-      const res = await fetch(`/api/bids`, {
+      const res = await fetch('/api/bids', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -180,276 +166,262 @@ export default function BountyDetailPage() {
     }
   };
 
-  const handleShare = async () => {
-    const shareText = `🔔 New Bounty: "${bounty?.task}" - Reward: ${bounty?.reward} USDC`;
-    if (!bounty || !sdkRef.current) {
-      const url = `https://warpcast.com/~/compose?text=${encodeURIComponent(shareText)}&embedUrl=${encodeURIComponent(`https://abb-five-umber.vercel.app/bounties/${bounty?.id}`)}`;
-      window.open(url, '_blank');
-      return;
-    }
-    try {
-      const result = await sdkRef.current.actions.composeCast({
-        text: shareText,
-        embeds: [`https://abb-five-umber.vercel.app/bounties/${bounty.id}`],
-      });
-      if (result?.cast) {
-        console.log('Cast posted:', result.cast.hash);
-      }
-    } catch (e) {
-      console.error(e);
-    }
-  };
-
   if (loading) {
     return (
-      <div className="min-h-screen bg-dark-bg flex items-center justify-center">
-        <motion.div 
-          animate={{ rotate: 360 }}
-          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-          className="w-6 h-6 border-2 border-meat-pink border-t-transparent rounded-full"
-        />
+      <div className="min-h-screen bg-[#000] flex items-center justify-center">
+        <div className="w-6 h-6 border-2 border-white/20 border-t-white rounded-full animate-spin" />
       </div>
     );
   }
 
   if (!bounty) {
     return (
-      <div className="min-h-screen bg-dark-bg flex items-center justify-center">
-        <div className="text-dark-muted text-sm">Bounty not found</div>
+      <div className="min-h-screen bg-[#000] flex items-center justify-center">
+        <div className="text-white/60">Bounty not found</div>
       </div>
     );
   }
 
+  const currentStep = statusConfig[bounty.status]?.step || 1;
+
   return (
-    <div className="min-h-screen bg-dark-bg text-dark-text">
-      <motion.div 
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="p-4 pb-20"
-      >
-        <div className="flex items-center gap-3 mb-6">
-          <button onClick={() => router.back()} className="text-dark-muted hover:text-white">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M19 12H5M12 19l-7-7 7-7"/>
-            </svg>
-          </button>
-          <span className="text-xs text-dark-muted uppercase tracking-widest">Bounty Details</span>
-        </div>
-
-        <div className="bg-dark-card border border-dark-border rounded-sm p-5 mb-4">
-          <div className="flex items-start gap-4 mb-4">
-            <div className={`w-12 h-12 rounded-sm flex items-center justify-center text-2xl ${typeColors[bounty.type] || typeColors.simple}`}>
-              {typeIcons[bounty.type] || <FiZap size={24} />}
+    <div className="min-h-screen bg-[#000] text-white">
+      <div className="max-w-md mx-auto bg-[#1C1C1E] min-h-screen">
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="p-5"
+        >
+          <div className="flex items-center justify-between mb-6">
+            <Link href="/app" className="flex items-center gap-2 text-white/60 hover:text-white">
+              <FiArrowLeft size={20} />
+              <span className="text-sm">Back</span>
+            </Link>
+            <div className="flex items-center gap-2">
+              <span 
+                className={`px-3 py-1 rounded-full text-[11px] font-medium ${statusConfig[bounty.status]?.bg} ${statusConfig[bounty.status]?.color || 'text-white'}`}
+              >
+                {statusConfig[bounty.status]?.label || bounty.status}
+              </span>
             </div>
-            <div className="flex-1">
-              <div className="flex items-center gap-2 mb-1">
-                <span className="text-xs text-dark-muted">{bounty.id}</span>
-                <span className={`px-2 py-0.5 rounded-sm text-[10px] font-medium ${statusConfig[bounty.status]?.bg || 'bg-white/10'} ${statusConfig[bounty.status]?.color || 'text-dark-muted'}`}>
-                  {statusConfig[bounty.status]?.label || bounty.status}
-                </span>
+          </div>
+
+          <div className="bg-[#2C2C2E] rounded-3xl p-5 mb-4">
+            <div className="flex items-start gap-4">
+              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#FF9500] to-[#FF3B30] flex items-center justify-center">
+                {typeIcons[bounty.type] || typeIcons.simple}
               </div>
-              <h1 className="text-lg font-bold leading-tight text-white">{bounty.task}</h1>
+              <div className="flex-1">
+                <div className="text-xs text-white/40 mb-1 font-medium">TASK</div>
+                <h1 className="text-lg font-semibold leading-tight">{bounty.task}</h1>
+              </div>
             </div>
-          </div>
-          
-          <div className="flex items-center justify-between pt-4 border-t border-dark-border">
-            <div>
-              <div className="text-2xl font-black text-meat-potato"><FiDollarSign className="inline" size={24} /> {bounty.reward}</div>
-              <div className="text-xs text-dark-muted">USDC</div>
-            </div>
-            <div className="text-right">
-              <div className="text-xs text-dark-muted">Posted by</div>
-              <div className="text-sm text-white">@{bounty.posterUsername || 'anonymous'}</div>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-dark-card border border-dark-border rounded-sm p-4 mb-4">
-          <div className="text-xs text-dark-muted mb-3 uppercase tracking-widest">Progress</div>
-          <div className="flex items-center justify-between">
-            {workflowSteps.map((s, i) => (
-              <div key={s.step} className="flex items-center flex-1">
-                <div className="flex flex-col items-center">
-                  <div className={`w-10 h-10 rounded-sm flex items-center justify-center text-xl ${
-                    statusConfig[bounty.status]?.step || 0 >= s.step 
-                      ? 'bg-gradient-meat text-black' 
-                      : 'bg-dark-hover text-dark-muted'
-                  }`}>
-                    {s.icon}
-                  </div>
-                  <span className={`text-[10px] mt-1 ${statusConfig[bounty.status]?.step || 0 >= s.step ? 'text-white' : 'text-dark-muted'}`}>
-                    {s.label}
-                  </span>
+            
+            <div className="flex items-center justify-between mt-5 pt-5 border-t border-white/10">
+              <div>
+                <div className="text-xs text-white/40 mb-1 font-medium">REWARD</div>
+                <div className="text-2xl font-bold">
+                  <FiDollarSign className="inline" size={20} />
+                  {bounty.reward}
+                  <span className="text-sm font-normal text-white/40 ml-1">USDC</span>
                 </div>
-                {i < workflowSteps.length - 1 && (
-                  <div className={`flex-1 h-0.5 mx-1 ${statusConfig[bounty.status]?.step || 0 > s.step ? 'bg-meat-pink' : 'bg-dark-border'}`} />
+              </div>
+              <div className="text-right">
+                <div className="text-xs text-white/40 mb-1 font-medium">POSTED BY</div>
+                <div className="text-sm font-medium">@{bounty.posterUsername}</div>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-[#2C2C2E] rounded-3xl p-5 mb-4">
+            <div className="text-xs text-white/40 mb-4 font-medium uppercase tracking-wide">Progress</div>
+            <div className="flex items-center justify-between">
+              {steps.map((label, i) => {
+                const isActive = currentStep > i;
+                const isCurrent = currentStep === i + 1;
+                return (
+                  <div key={label} className="flex flex-col items-center flex-1">
+                    <div 
+                      className={`w-8 h-8 rounded-full flex items-center justify-center mb-2 transition-all ${
+                        isActive 
+                          ? 'bg-white text-black' 
+                          : 'bg-[#3A3A3C] text-white/30'
+                      }`}
+                    >
+                      {isActive ? <FiCheck size={16} /> : <span className="text-xs">{i + 1}</span>}
+                    </div>
+                    <span className={`text-[10px] ${isCurrent ? 'text-white font-medium' : 'text-white/40'}`}>
+                      {label}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {bounty.workerUsername && (
+            <div className="bg-[#2C2C2E] rounded-3xl p-5 mb-4">
+              <div className="text-xs text-white/40 mb-3 font-medium">WORKER</div>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#FF9500] to-[#FF3B30] flex items-center justify-center text-black font-semibold">
+                    {bounty.workerUsername[0].toUpperCase()}
+                  </div>
+                  <span className="font-medium">@{bounty.workerUsername}</span>
+                </div>
+                {bounty.status === 'settled' && (
+                  <span className="text-[#34C759] text-sm font-medium">
+                    <FiDollarSign className="inline" size={14} /> Paid
+                  </span>
                 )}
               </div>
-            ))}
-          </div>
-        </div>
-
-        <div className={`p-4 rounded-sm mb-4 ${statusConfig[bounty.status]?.bg || 'bg-dark-card'}`}>
-          <div className="text-xs text-dark-muted mb-1">
-            {statusConfig[bounty.status]?.icon} {bounty.status === 'open' && 'Waiting for agents to bid...'}
-            {bounty.status === 'assigned' && 'Work in progress...'}
-            {bounty.status === 'completed' && 'Work submitted, awaiting completion...'}
-            {bounty.status === 'settled' && 'Payment complete!'}
-            {!statusConfig[bounty.status] && 'Unknown status'}
-          </div>
-          <div className={`text-sm font-bold ${statusConfig[bounty.status]?.color || 'text-dark-muted'}`}>
-            {statusConfig[bounty.status]?.label || bounty.status}
-          </div>
-        </div>
-
-        {bounty.workerUsername && (
-          <div className="bg-dark-card border border-dark-border rounded-sm p-4 mb-4">
-            <div className="text-xs text-dark-muted mb-2 uppercase tracking-widest">Worker</div>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-gradient-meat flex items-center justify-center text-black font-bold">
-                  {bounty.workerUsername[0].toUpperCase()}
-                </div>
-                <span className="text-sm font-bold text-white">@{bounty.workerUsername}</span>
-              </div>
-              {bounty.status === 'settled' && (
-                <span className="text-sm text-meat-pink"><FiCheck className="inline" size={14} /> Paid <FiDollarSign className="inline" size={14} /> {bounty.reward} USDC</span>
-              )}
             </div>
-          </div>
-        )}
+          )}
 
-        <button 
-          onClick={handleShare}
-          className="w-full bg-dark-card border border-dark-border text-white font-medium py-3 rounded-sm text-sm mb-4 hover:border-meat-brown/50 flex items-center justify-center gap-2"
-        >
-          📤 Share Bounty
-        </button>
-
-        {bounty.status === 'assigned' && user?.fid === bounty.workerFid && (
-          <button 
-            onClick={() => router.push(`/settle?bountyId=${bounty.id}`)}
-            className="w-full bg-gradient-meat text-black font-bold py-3 rounded-sm text-sm mb-4 glow-warm flex items-center justify-center gap-2"
-          >
-            <FiDollarSign className="inline" size={14} /> Submit Work & Get Paid
-          </button>
-        )}
-
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-sm font-bold uppercase tracking-wide text-white">Bids ({bids.length})</h2>
-        </div>
-
-        <AnimatePresence>
-          {bids.map((bid, i) => (
-            <motion.div 
-              key={bid.id}
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: i * 0.1 }}
-              className={`bg-dark-card border rounded-sm p-4 mb-3 ${
-                bid.status === 'accepted' ? 'border-meat-brown/30' : 'border-dark-border'
-              }`}
+          {bounty.status === 'assigned' && user?.fid === bounty.workerFid && (
+            <Link 
+              href={`/settle?bountyId=${bounty.id}`}
+              className="block w-full bg-gradient-to-r from-[#FF9500] to-[#FF3B30] text-black font-semibold py-4 rounded-2xl text-center mb-4"
             >
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-bold text-white">@{bid.agentUsername}</span>
-                  {bid.status === 'accepted' && (
-                    <span className="text-[10px] bg-meat-pink/20 text-meat-pink px-2 py-0.5 rounded-sm">
-                      <FiCheck className="inline" size={10} /> Selected
-                    </span>
-                  )}
-                </div>
-                <span className="text-sm font-black text-meat-potato"><FiDollarSign className="inline" size={14} /> {bid.priceUsdc} USDC</span>
-              </div>
-              <p className="text-xs text-dark-muted mb-2">{bid.proposal}</p>
-              {bounty.status === 'open' && user?.fid === bounty.posterFid && bid.status !== 'accepted' && (
+              Complete Work
+            </Link>
+          )}
+
+          <div className="bg-[#2C2C2E] rounded-3xl p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-sm font-semibold">Bids ({bids.length})</h2>
+              {bounty.status === 'open' && user?.fid !== bounty?.posterFid && !submitted && (
                 <button 
-                  onClick={() => handleAcceptBid(bid)}
-                  disabled={submitting}
-                  className="text-xs text-meat-pink hover:underline"
+                  onClick={() => setShowBidForm(!showBidForm)}
+                  className="text-xs text-[#FF9500] font-medium"
                 >
-                  Accept →
+                  {showBidForm ? 'Cancel' : 'Place Bid'}
                 </button>
               )}
-              {bid.status === 'accepted' && (
-                <span className="text-xs text-meat-pink"><FiCheck className="inline" size={12} /> Accepted - Working on this</span>
-              )}
-            </motion.div>
-          ))}
-        </AnimatePresence>
+            </div>
 
-        {bounty.status === 'open' && !submitted && (
-          <AnimatePresence>
-            {showBidForm ? (
-              <motion.form 
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                exit={{ opacity: 0, height: 0 }}
-                onSubmit={handleSubmitBid}
-                className="bg-dark-card border border-dark-border rounded-sm p-4"
-              >
-                <div className="text-xs text-dark-muted mb-3">Your Proposal</div>
-                <textarea
-                  value={bidProposal}
-                  onChange={(e) => setBidProposal(e.target.value)}
-                  placeholder="Describe how you'll complete this task..."
-                  className="w-full bg-dark-bg border border-dark-border rounded-sm p-3 text-sm text-dark-text placeholder-dark-muted mb-3 resize-none"
-                  rows={3}
-                  required
-                />
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="text-xs text-dark-muted">Your price:</div>
-                  <input
-                    type="number"
-                    value={bidPrice}
-                    onChange={(e) => setBidPrice(parseFloat(e.target.value))}
-                    step={0.1}
-                    min={0.1}
-                    className="bg-dark-bg border border-dark-border rounded-sm px-3 py-2 text-sm text-dark-text w-20"
+            <AnimatePresence>
+              {showBidForm && (
+                <motion.form 
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  onSubmit={handleSubmitBid}
+                  className="bg-[#3A3A3C] rounded-2xl p-4 mb-4"
+                >
+                  <textarea
+                    value={bidProposal}
+                    onChange={(e) => setBidProposal(e.target.value)}
+                    placeholder="Describe your approach..."
+                    className="w-full bg-[#2C2C2E] rounded-xl p-3 text-sm text-white placeholder-white/40 mb-3 resize-none"
+                    rows={3}
+                    required
                   />
-                  <span className="text-sm text-dark-muted">USDC</span>
-                </div>
-                <div className="flex gap-2">
-                  <button 
-                    type="button"
-                    onClick={() => setShowBidForm(false)}
-                    className="flex-1 py-2 text-xs text-dark-muted"
-                  >
-                    Cancel
-                  </button>
-                  <button 
-                    type="submit"
-                    disabled={submitting}
-                    className="flex-1 bg-gradient-meat text-black font-bold py-2 rounded-sm text-xs"
-                  >
-                    {submitting ? 'Submitting...' : 'Submit Bid'}
-                  </button>
-                </div>
-              </motion.form>
-            ) : (
-              <motion.button
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                onClick={() => setShowBidForm(true)}
-                className="w-full border border-dark-border text-dark-muted py-3 rounded-sm text-sm hover:border-meat-brown/50"
-              >
-                ✋ Place Bid
-              </motion.button>
-            )}
-          </AnimatePresence>
-        )}
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="text-sm text-white/60">Your price:</span>
+                    <input
+                      type="number"
+                      value={bidPrice}
+                      onChange={(e) => setBidPrice(parseFloat(e.target.value))}
+                      step={0.1}
+                      min={0.1}
+                      className="bg-[#2C2C2E] rounded-lg px-3 py-2 text-sm text-white w-20"
+                    />
+                    <span className="text-sm text-white/40">USDC</span>
+                  </div>
+                  <div className="flex gap-2">
+                    <button 
+                      type="button"
+                      onClick={() => setShowBidForm(false)}
+                      className="flex-1 py-2 text-sm text-white/60"
+                    >
+                      Cancel
+                    </button>
+                    <button 
+                      type="submit"
+                      disabled={submitting}
+                      className="flex-1 bg-[#FF9500] text-black font-medium py-2 rounded-lg text-sm"
+                    >
+                      {submitting ? 'Submitting...' : 'Submit'}
+                    </button>
+                  </div>
+                </motion.form>
+              )}
+            </AnimatePresence>
 
-        {submitted && (
-          <motion.div 
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="bg-green-500/10 border border-green-500/30 rounded-sm p-4 text-center"
-          >
-            <div className="text-green-400 text-sm mb-1">✓ Bid Submitted!</div>
-            <div className="text-xs text-dark-muted">The poster will be notified</div>
-          </motion.div>
-        )}
-      </motion.div>
+            {submitted && (
+              <motion.div 
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="bg-[#34C759]/15 border border-[#34C759]/30 rounded-2xl p-4 text-center mb-4"
+              >
+                <div className="text-[#34C759] text-sm font-medium">Bid Submitted!</div>
+                <div className="text-xs text-white/40 mt-1">The poster will be notified</div>
+              </motion.div>
+            )}
+
+            {bids.length === 0 ? (
+              <div className="text-center py-6 text-white/40 text-sm">No bids yet</div>
+            ) : (
+              <div className="space-y-3">
+                {bids.map((bid) => (
+                  <motion.div 
+                    key={bid.id}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    className={`p-4 rounded-2xl ${
+                      bid.status === 'accepted' 
+                        ? 'bg-[#FF9500]/15 border border-[#FF9500]/30' 
+                        : 'bg-[#3A3A3C]'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-full bg-[#FF9500]/20 flex items-center justify-center text-[#FF9500] font-medium text-sm">
+                          {bid.agentUsername[0].toUpperCase()}
+                        </div>
+                        <span className="font-medium">@{bid.agentUsername}</span>
+                        {bid.status === 'accepted' && (
+                          <span className="text-[10px] bg-[#FF9500]/20 text-[#FF9500] px-2 py-0.5 rounded-full">
+                            Selected
+                          </span>
+                        )}
+                      </div>
+                      <span className="font-semibold">
+                        <FiDollarSign className="inline" size={12} />
+                        {bid.priceUsdc}
+                      </span>
+                    </div>
+                    <p className="text-xs text-white/60 mb-2">{bid.proposal}</p>
+                    {bounty.status === 'open' && user?.fid === bounty?.posterFid && bid.status !== 'accepted' && (
+                      <button 
+                        onClick={() => handleAcceptBid(bid)}
+                        disabled={submitting}
+                        className="text-xs bg-[#FF9500] text-black font-medium px-4 py-2 rounded-lg"
+                      >
+                        Accept Bid
+                      </button>
+                    )}
+                  </motion.div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="mt-4 pt-4 border-t border-white/10">
+            <button 
+              onClick={() => {
+                const text = `🔔 Bounty: "${bounty.task}" - ${bounty.reward} USDC`;
+                window.open(`https://warpcast.com/~/compose?text=${encodeURIComponent(text)}`, '_blank');
+              }}
+              className="w-full bg-[#2C2C2E] text-white/80 font-medium py-3 rounded-2xl text-sm flex items-center justify-center gap-2"
+            >
+              <FiShield size={16} />
+              Share to Warpcast
+            </button>
+          </div>
+        </motion.div>
+      </div>
     </div>
   );
 }
