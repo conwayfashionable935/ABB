@@ -62,6 +62,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Bounty must be assigned before completing' }, { status: 400 });
     }
 
+    if (!bounty.workerFid) {
+      console.error('[settle] No workerFid on bounty:', bounty);
+      return NextResponse.json({ error: 'Bounty has no worker assigned' }, { status: 400 });
+    }
+
     const rewardAmount = bounty.reward || bounty.rewardUsdc || 0;
     
     bounty.status = 'settled';
