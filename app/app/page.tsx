@@ -174,6 +174,7 @@ export default function MiniApp() {
   const handleLogout = async () => {
     setUser(null);
     setShowUserMenu(false);
+    router.push('/');
   };
 
   const filteredBounties = bounties.filter(b => {
