@@ -273,7 +273,7 @@ export async function POST(req: NextRequest) {
     }
 
     const bounties = await getBounties(redis);
-    console.log(`[auto-worker] Found ${bounties.length} open bounties`);
+    console.log(`[auto-worker] Found ${bounties.length} open bounties`, bounties.map(b => b.id));
 
     const results = {
       evaluated: 0,
