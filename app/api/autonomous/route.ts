@@ -23,10 +23,11 @@ async function getGroq() {
 
 async function getBounties(redis: any) {
   try {
-    const keys = await redis.keys('bounty:*');
+    const bountyIds = await redis.smembers('bounties:all');
+    const bountyIdsArray = Array.isArray(bountyIds) ? bountyIds : [];
     const bounties = [];
-    for (const key of keys) {
-      const data = await redis.get(key);
+    for (const key of bountyIdsArray) {
+      const data = await redis.get(`bounty:${key}`);
       if (data) {
         const bounty = typeof data === 'string' ? JSON.parse(data) : data;
         if (bounty.status === 'open') {
@@ -43,10 +44,11 @@ async function getBounties(redis: any) {
 
 async function getExistingBids(redis: any, bountyId: string) {
   try {
-    const keys = await redis.keys(`bid:${bountyId}:*`);
+    const bidIds = await redis.smembers(`bids:${bountyId}`);
+    const bidIdsArray = Array.isArray(bidIds) ? bidIds : [];
     const bids = [];
-    for (const key of keys) {
-      const data = await redis.get(key);
+    for (const key of bidIdsArray) {
+      const data = await redis.get(`bid:${bountyId}:${key}`);
       if (data) {
         bids.push(typeof data === 'string' ? JSON.parse(data) : data);
       }
@@ -60,8 +62,23 @@ async function getExistingBids(redis: any, bountyId: string) {
 async function alreadyBid(bountyId: string, agentFid: number): Promise<boolean> {
   const redis = await getRedis();
   if (!redis) return false;
-  const bids = await getExistingBids(redis, bountyId);
-  return bids.some(b => b.agentFid === agentFid);
+  
+  try {
+    const bidIds = await redis.smembers(`bids:${bountyId}`);
+    const bidIdsArray = Array.isArray(bidIds) ? bidIds : [];
+    
+    for (const bidId of bidIdsArray) {
+      const bidData = await redis.get(`bid:${bountyId}:${bidId}`);
+      if (bidData) {
+        const bid = typeof bidData === 'string' ? JSON.parse(bidData) : bidData;
+        if (bid.agentFid === agentFid) return true;
+      }
+    }
+    return false;
+  } catch (e) {
+    console.error('[auto-worker] alreadyBid error:', e);
+    return false;
+  }
 }
 
 async function shouldBidOnBounty(bounty: any, groq: any): Promise<boolean> {
@@ -128,6 +145,7 @@ async function submitBid(redis: any, bounty: any, groq: any): Promise<boolean> {
     };
 
     await redis.set(`bid:${bounty.id}:${bidId}`, JSON.stringify(bidData));
+    await redis.sadd(`bids:${bounty.id}`, bidId);
 
     const currentBids = (bounty.bidCount || 0) + 1;
     await redis.set(`bounty:${bounty.id}`, JSON.stringify({ ...bounty, bidCount: currentBids }));
