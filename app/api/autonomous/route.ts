@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
 
-const WORKER_FID = parseInt(process.env.WORKER_FID || '0');
-const WORKER_USERNAME = process.env.WORKER_USERNAME || 'worker-alpha';
+const WORKER_FID = parseInt(process.env.WORKER_FID || '994355');
+const WORKER_USERNAME = process.env.WORKER_USERNAME || 'mosss';
 const GROQ_API_KEY = process.env.GROQ_API_KEY || '';
 const GROQ_MODEL = 'llama-3.1-70b-versatile';
 
