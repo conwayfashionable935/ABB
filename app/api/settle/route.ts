@@ -37,10 +37,18 @@ async function updateAgentStats(agentFid: number, amountUsdc: number, redis: any
 }
 
 export async function POST(req: NextRequest) {
+  let body: any = {};
   try {
-    const body = await req.json();
-    const { bountyId, resultUrl } = body;
+    body = await req.json();
+  } catch (e) {
+    console.error('[settle] Failed to parse JSON:', e);
+    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
+  }
 
+  const { bountyId, resultUrl } = body;
+  console.log('[settle] Request:', { bountyId, resultUrl });
+
+  try {
     if (!bountyId) {
       return NextResponse.json({ error: 'bountyId required' }, { status: 400 });
     }
@@ -56,6 +64,8 @@ export async function POST(req: NextRequest) {
       console.error('[settle] Bounty not found:', bountyId);
       return NextResponse.json({ error: 'Bounty not found' }, { status: 404 });
     }
+
+    console.log('[settle] Bounty found:', bounty);
 
     if (bounty.status !== 'assigned') {
       console.error('[settle] Wrong status:', bounty.status);
