@@ -4,8 +4,11 @@ export const dynamic = 'force-dynamic';
 
 async function getRedis() {
   if (!process.env.UPSTASH_REDIS_REST_URL) return null;
+  const url = (process.env.UPSTASH_REDIS_REST_URL || '').trim();
+  const token = (process.env.UPSTASH_REDIS_REST_TOKEN || '').trim();
+  console.log('[settle] Redis URL:', url);
   const { Redis } = await import('@upstash/redis');
-  return new Redis({ url: process.env.UPSTASH_REDIS_REST_URL, token: process.env.UPSTASH_REDIS_REST_TOKEN });
+  return new Redis({ url, token });
 }
 
 async function getBountyFromRedis(id: string, redis: any): Promise<any | null> {
