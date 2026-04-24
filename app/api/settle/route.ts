@@ -81,8 +81,9 @@ export async function POST(req: NextRequest) {
       bounty,
       message: 'Bounty completed successfully',
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('[settle] POST error:', error);
-    return NextResponse.json({ error: 'Failed to complete bounty' }, { status: 500 });
+    const message = error?.message || 'Failed to complete bounty';
+    return NextResponse.json({ error: message, details: error?.toString() }, { status: 500 });
   }
 }
