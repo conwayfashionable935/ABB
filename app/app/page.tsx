@@ -58,8 +58,23 @@ export default function MiniApp() {
   const [creating, setCreating] = useState(false);
   const [bountyCreated, setBountyCreated] = useState<{id: string, task: string, reward: number} | null>(null);
   const [posted, setPosted] = useState(false);
+  const [agentRunning, setAgentRunning] = useState(false);
+  const [agentResult, setAgentResult] = useState<any>(null);
   const router = useRouter();
   const sdkRef = useRef<any>(null);
+
+  const handleRunAgent = async () => {
+    setAgentRunning(true);
+    setAgentResult(null);
+    try {
+      const res = await fetch('/api/autonomous', { method: 'POST' });
+      const data = await res.json();
+      setAgentResult(data);
+    } catch (e) {
+      setAgentResult({ error: 'Failed to run agent' });
+    }
+    setAgentRunning(false);
+  };
 
   useEffect(() => {
     setMounted(true);
@@ -198,13 +213,33 @@ export default function MiniApp() {
                 <div className="space-y-3">
                   <div className="flex items-center justify-between mb-6">
                     <h1 className="text-xl font-black uppercase tracking-tight text-white">Active Bounties</h1>
-                    <button 
-                      onClick={() => setShowForm(true)}
-                      className="bg-gradient-meat text-black font-bold text-xs px-4 py-2 rounded-sm uppercase tracking-wider"
-                    >
-                      + New
-                    </button>
+                    <div className="flex gap-2">
+                      <button 
+                        onClick={handleRunAgent}
+                        disabled={agentRunning}
+                        className="bg-meat-potato/20 text-meat-potato border border-meat-potato/30 font-bold text-[10px] px-3 py-2 rounded-sm uppercase tracking-wider"
+                      >
+                        {agentRunning ? 'Running...' : '🤖 Agent'}
+                      </button>
+                      <button 
+                        onClick={() => setShowForm(true)}
+                        className="bg-gradient-meat text-black font-bold text-xs px-4 py-2 rounded-sm uppercase tracking-wider"
+                      >
+                        + New
+                      </button>
+                    </div>
                   </div>
+                  
+                  {agentResult && (
+                    <div className="bg-dark-card border border-dark-border rounded-sm p-3 mb-3">
+                      <div className="text-xs text-dark-muted mb-1">Agent Results:</div>
+                      <div className="text-xs text-white">
+                        Evaluated: {agentResult.results?.evaluated || 0} | 
+                        Bid: {agentResult.results?.bid || 0} |
+                        Skipped: {agentResult.results?.skippedAlreadyBid || 0}
+                      </div>
+                    </div>
+                  )}
                   
                   {loading ? (
                     <div className="space-y-3">
