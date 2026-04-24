@@ -316,8 +316,16 @@ export async function POST(req: NextRequest) {
 
     const openBounties = await getOpenBounties(redis);
     const assignedBounties = await getAssignedBounties(redis);
-    const allBounties = [...openBounties, ...assignedBounties];
-    console.log(`[auto-worker] Found ${openBounties.length} open, ${assignedBounties.length} assigned`);
+    console.log(`[auto-worker] Found ${openBounties.length} open, ${assignedBounties.length} assigned bounty(ies)`);
+    
+    if (assignedBounties.length > 0) {
+      console.log(`[auto-worker] Assigned bounties:`, assignedBounties.map(b => ({ 
+        id: b.id, 
+        workerFid: b.workerFid, 
+        targetFid: WORKER_FID,
+        status: b.status
+      })));
+    }
 
     const results = {
       evaluated: 0,
@@ -352,6 +360,7 @@ export async function POST(req: NextRequest) {
 
     for (const bounty of assignedBounties) {
       if (bounty.workerFid === WORKER_FID) {
+        console.log(`[auto-worker] Executing assigned bounty ${bounty.id}`);
         results.executed++;
         const result = await executeTask(bounty);
         await settleBounty(redis, bounty, result);
