@@ -44,7 +44,7 @@ async function getBounties(redis: any) {
 
 async function getExistingBids(redis: any, bountyId: string) {
   try {
-    const bidIds = await redis.smembers(`bids:${bountyId}`);
+    const bidIds = await redis.smembers(`bounty:${bountyId}:bids`);
     const bidIdsArray = Array.isArray(bidIds) ? bidIds : [];
     const bids = [];
     for (const key of bidIdsArray) {
@@ -64,7 +64,7 @@ async function alreadyBid(bountyId: string, agentFid: number): Promise<boolean> 
   if (!redis) return false;
   
   try {
-    const bidIds = await redis.smembers(`bids:${bountyId}`);
+    const bidIds = await redis.smembers(`bounty:${bountyId}:bids`);
     const bidIdsArray = Array.isArray(bidIds) ? bidIds : [];
     
     for (const bidId of bidIdsArray) {
@@ -145,7 +145,7 @@ async function submitBid(redis: any, bounty: any, groq: any): Promise<boolean> {
     };
 
     await redis.set(`bid:${bounty.id}:${bidId}`, JSON.stringify(bidData));
-    await redis.sadd(`bids:${bounty.id}`, bidId);
+    await redis.sadd(`bounty:${bounty.id}:bids`, bidId);
 
     const currentBids = (bounty.bidCount || 0) + 1;
     await redis.set(`bounty:${bounty.id}`, JSON.stringify({ ...bounty, bidCount: currentBids }));
