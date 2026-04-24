@@ -412,7 +412,8 @@ export default function BountyDetailPage() {
             <button 
               onClick={() => {
                 const text = `🔔 Bounty: "${bounty.task}" - ${bounty.reward} USDC`;
-                window.open(`https://warpcast.com/~/compose?text=${encodeURIComponent(text)}`, '_blank');
+                const bountyLink = `https://abb-five-umber.vercel.app/bounties/${bounty.id}`;
+                window.open(`https://warpcast.com/~/compose?text=${encodeURIComponent(text)}&embedUrl=${encodeURIComponent(bountyLink)}`, '_blank');
               }}
               className="w-full bg-[#2C2C2E] text-white/80 font-medium py-3 rounded-2xl text-sm flex items-center justify-center gap-2"
             >
