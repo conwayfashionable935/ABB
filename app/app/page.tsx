@@ -241,9 +241,9 @@ export default function MiniApp() {
     <div className="min-h-screen bg-[#000]">
       <div className="max-w-md mx-auto bg-[#000] min-h-screen">
         <div className="p-5">
-          {fundingAddress && (
+          {user && fundingAddress && (
             <div className="mb-4 bg-[#1C1C1E] rounded-xl p-3">
-              <div className="text-[10px] text-white/40 mb-1">Your Base Sepolia Deposit Address</div>
+              <div className="text-[10px] text-white/40 mb-1">Your Wallet (Base Sepolia)</div>
               <button
                 onClick={async () => {
                   await navigator.clipboard.writeText(fundingAddress);
@@ -255,8 +255,18 @@ export default function MiniApp() {
                 <FiCopy size={10} />
                 {copyingAddress ? 'Copied!' : fundingAddress}
               </button>
-              <div className="text-[10px] text-[#34C759] mt-2">
-                <FiDollarSign className="inline" size={8} />{userBalance.toFixed(2)} USDC balance
+              <div className="flex items-center justify-between mt-2">
+                <div className="text-[10px] text-white/40">
+                  <FiDollarSign className="inline" size={8} />{userBalance.toFixed(2)} USDC
+                </div>
+                <a 
+                  href="https://bridge.base.org/deposit"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[10px] bg-[#FF9500] text-black px-2 py-1 rounded-lg font-medium hover:bg-[#FF3B30] transition-colors"
+                >
+                  Get Test USDC
+                </a>
               </div>
             </div>
           )}

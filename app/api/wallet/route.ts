@@ -10,25 +10,25 @@ function getRedisConfig() {
   };
 }
 
-async function getRedis() {
-  const config = getRedisConfig();
-  if (!config.url || !config.token) return null;
-  return new Redis({ url: config.url, token: config.token });
-}
-
 function deriveWalletAddress(fid: number): string {
-  const seed = `user_${fid}_deposit`;
-  const hash = seed.split('').reduce((acc, char) => {
-    return ((acc << 5) - acc) + char.charCodeAt(0);
-  }, 0);
-  const address = '0x' + Math.abs(hash).toString(16).padStart(64, '0').slice(-40);
-  return address;
+  const seed = `user_${fid}_wallet`;
+  let hash = 0;
+  for (let i = 0; i < seed.length; i++) {
+    hash = ((hash << 5) - hash) + seed.charCodeAt(i);
+    hash = hash & hash;
+  }
+  return '0x' + Math.abs(hash).toString(16).padStart(40, '0').slice(-40);
 }
 
 async function getBalanceFromChain(address: string): Promise<number> {
   try {
     const axios = (await import('axios')).default;
-    const rpcUrl = process.env.BASE_SEPOLIA_RPC_URL || 'https://base-sepolia.g.alchemy.com/v2/Ef456717OSoAY5b4ZMI10';
+    const rpcUrl = process.env.BASE_SEPOLIA_RPC_URL;
+    
+    if (!rpcUrl) {
+      console.log('[wallet] No RPC URL configured');
+      return 0;
+    }
     
     const response = await axios.post(rpcUrl, {
       jsonrpc: '2.0',
@@ -62,19 +62,20 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'invalid fid' }, { status: 400 });
   }
   
-  const address = deriveWalletAddress(fidNum);
-  const balance = await getBalanceFromChain(address);
+  const walletAddress = deriveWalletAddress(fidNum);
+  const balance = await getBalanceFromChain(walletAddress);
   
-  const redis = await getRedis();
+  const config = getRedisConfig();
   let depositedUsdc = 0;
-  if (redis) {
+  if (config.url && config.token) {
+    const redis = new Redis({ url: config.url, token: config.token });
     const depositRecord = await redis.hget(`user:${fidNum}`, 'depositedUsdc');
     depositedUsdc = typeof depositRecord === 'number' ? depositRecord : 0;
   }
   
   return NextResponse.json({
     fid: fidNum,
-    address,
+    address: walletAddress,
     balance,
     depositedUsdc,
     network: 'base-sepolia',
