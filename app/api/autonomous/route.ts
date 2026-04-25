@@ -173,10 +173,15 @@ export async function POST(req: NextRequest) {
 
     const groq = await getGroq();
 
+    console.log('[auto-worker] Fetching open bounties...');
     const openBounties = await getBounties(redis, 'open');
-    const assignedBounties = await getBounties(redis, 'assigned');
+    console.log('[auto-worker] Open bounties type:', typeof openBounties);
+    console.log('[auto-worker] Is array:', Array.isArray(openBounties));
+    console.log('[auto-worker] Open bounties:', openBounties);
     
-    console.log(`[auto-worker] Open: ${openBounties.length}, Assigned: ${assignedBounties.length}`);
+    console.log('[auto-worker] Fetching assigned bounties...');
+    const assignedBounties = await getBounties(redis, 'assigned');
+    console.log('[auto-worker] Assigned bounties:', assignedBounties);
     
     if (openBounties.length === 0 && assignedBounties.length === 0) {
       return NextResponse.json({
