@@ -26,22 +26,24 @@ async function getGroq() {
 
 async function getOpenBounties(redis: any) {
   try {
-    // Debug: Check what key format is used for storing bounty sets
     const bountyIds = await redis.smembers('bounties:all');
-    console.log(`[auto-worker] Found bounty IDs in 'bounties:all':`, bountyIds);
-    const bountyIdsArray = Array.isArray(bountyIds) ? bountyIds : [];
-    const bounties = [];
-    for (const key of bountyIdsArray) {
+    if (!bountyIds || !Array.isArray(bountyIds)) {
+      console.log('[auto-worker] No bounties found or invalid data');
+      return [];
+    }
+    
+    const bounties: any[] = [];
+    for (const key of bountyIds) {
+      if (!key) continue;
       const data = await redis.get(`bounty:${key}`);
-      console.log(`[auto-worker] Checking bounty ${key}:`, data ? 'found' : 'not found');
-      if (data) {
-        const bounty = typeof data === 'string' ? JSON.parse(data) : data;
-        if (bounty.status === 'open') {
-          bounties.push(bounty);
-          console.log(`[auto-worker] Added open bounty: ${bounty.id}`);
-        }
+      if (!data) continue;
+      
+      const bounty = typeof data === 'string' ? JSON.parse(data) : data;
+      if (bounty && bounty.status === 'open') {
+        bounties.push(bounty);
       }
     }
+    console.log(`[auto-worker] Found ${bounties.length} open bounties`);
     return bounties;
   } catch (e) {
     console.error('[auto-worker] getOpenBounties error:', e);
