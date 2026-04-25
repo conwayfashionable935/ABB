@@ -23,15 +23,19 @@ async function getGroq() {
 
 async function getOpenBounties(redis: any) {
   try {
-    const bountyIds = await redis.smembers('bounty:all');
+    // Debug: Check what key format is used for storing bounty sets
+    const bountyIds = await redis.smembers('bounties:all');
+    console.log(`[auto-worker] Found bounty IDs in 'bounties:all':`, bountyIds);
     const bountyIdsArray = Array.isArray(bountyIds) ? bountyIds : [];
     const bounties = [];
     for (const key of bountyIdsArray) {
       const data = await redis.get(`bounty:${key}`);
+      console.log(`[auto-worker] Checking bounty ${key}:`, data ? 'found' : 'not found');
       if (data) {
         const bounty = typeof data === 'string' ? JSON.parse(data) : data;
         if (bounty.status === 'open') {
           bounties.push(bounty);
+          console.log(`[auto-worker] Added open bounty: ${bounty.id}`);
         }
       }
     }
@@ -44,7 +48,7 @@ async function getOpenBounties(redis: any) {
 
 async function getAssignedBounties(redis: any) {
   try {
-    const bountyIds = await redis.smembers('bounty:all');
+    const bountyIds = await redis.smembers('bounties:all');
     const bountyIdsArray = Array.isArray(bountyIds) ? bountyIds : [];
     const bounties = [];
     for (const key of bountyIdsArray) {
@@ -134,7 +138,7 @@ async function alreadyBid(bountyId: string, agentFid: number): Promise<boolean> 
     const bidIdsArray = Array.isArray(bidIds) ? bidIds : [];
     
     for (const bidId of bidIdsArray) {
-      const bidData = await redis.get(`bid:${bountyId}:${bidId}`);
+      const bidData = await redis.get(`bid:${bidId}`);
       if (bidData) {
         const bid = typeof bidData === 'string' ? JSON.parse(bidData) : bidData;
         if (bid.agentFid === agentFid) return true;
@@ -146,11 +150,77 @@ async function alreadyBid(bountyId: string, agentFid: number): Promise<boolean> 
     return false;
   }
 }
+    }
+    return false;
+  } catch (e) {
+    console.error('[auto-worker] alreadyBid error:', e);
+    return false;
+  }
+}
 
 async function shouldBidOnBounty(bounty: any, groq: any): Promise<boolean> {
+  // If no Groq, be more permissive for testing
   if (!groq) {
-    console.log('[auto-worker] No Groq, defaulting to bid');
+    console.log('[auto-worker] No Groq, defaulting to bid for testing');
     return true;
+  }
+
+  // Always bid on very simple tasks for testing/demo purposes
+  const simpleTasks = ['what is 2+2', 'reply with exactly', 'say hello', 'translate'];
+  const taskLower = bounty.task.toLowerCase();
+  for (const simple of simpleTasks) {
+    if (taskLower.includes(simple)) {
+      console.log(`[auto-worker] Simple task detected: ${bounty.task}`);
+      return true;
+    }
+  }
+
+  console.log(`[auto-worker] Evaluating complex task: ${bounty.task}`);
+  const prompt = `You are an autonomous AI worker evaluating whether to accept a bounty task.
+
+Bounty Details:
+- ID: ${bounty.id}
+- Task: ${bounty.task}
+- Type: ${bounty.type || 'simple'}
+- Reward: ${bounty.reward} USDC
+- Posted by: @${bounty.posterUsername || 'unknown'}
+
+Evaluate whether you can complete this task effectively. Consider:
+1. Do you understand the task?
+2. Can you complete it with AI (translation, summarization, research, writing)?
+3. Is the reward fair for the effort?
+
+Respond with ONLY "YES" or "NO" followed by a brief reason.
+Example: "YES - Clear translation task, reasonable pay"
+Example: "NO - Requires physical action I cannot do"`;
+
+  try {
+    const completion = await groq.chat.completions.create({
+      model: GROQ_MODEL,
+      messages: [{ role: 'user', content: prompt }],
+      max_tokens: 50,
+      temperature: 0.3,
+    });
+
+    const response = completion.choices[0]?.message?.content || '';
+    console.log(`[auto-worker] AI decision for ${bounty.id}: ${response}`);
+    const shouldBid = response.trim().toUpperCase().startsWith('YES');
+    console.log(`[auto-worker] Bidding decision for ${bounty.id}: ${shouldBid}`);
+    return shouldBid;
+  } catch (e) {
+    console.error('[auto-worker] shouldBidOnBounty error:', e);
+    return true; // Default to bidding on error for testing
+  }
+}
+
+  // Always bid on very simple tasks for testing/demo purposes
+  const simpleTasks = ['what is 2+2', 'reply with exactly', 'say hello', 'translate'];
+  const taskLower = bounty.task.toLowerCase();
+  for (const simple of simpleTasks) {
+    if (taskLower.includes(simple)) {
+      console.log(`[auto-worker] Simple task detected: ${bounty.task}`);
+      return true;
+    }
   }
 
   const prompt = `You are an autonomous AI worker evaluating whether to accept a bounty task.
@@ -184,7 +254,7 @@ Example: "NO - Requires physical action I cannot do"`;
     return response.trim().toUpperCase().startsWith('YES');
   } catch (e) {
     console.error('[auto-worker] shouldBidOnBounty error:', e);
-    return true;
+    return true; // Default to bidding on error for testing
   }
 }
 
@@ -198,30 +268,30 @@ async function submitBid(redis: any, bounty: any, groq: any): Promise<boolean> {
   const proposal = await generateProposal(bounty, groq);
   const priceUsdc = bounty.reward || 1;
 
-  try {
-    const bidData = {
-      id: bidId,
-      bountyId: bounty.id,
-      agentFid: WORKER_FID,
-      agentUsername: WORKER_USERNAME,
-      proposal,
-      priceUsdc,
-      status: 'pending',
-      createdAt: Math.floor(Date.now() / 1000),
-    };
+    try {
+      const bidData = {
+        id: bidId,
+        bountyId: bounty.id,
+        agentFid: WORKER_FID,
+        agentUsername: WORKER_USERNAME,
+        proposal,
+        priceUsdc,
+        status: 'pending',
+        createdAt: Math.floor(Date.now() / 1000),
+      };
 
-    await redis.set(`bid:${bounty.id}:${bidId}`, JSON.stringify(bidData));
-    await redis.sadd(`bounty:${bounty.id}:bids`, bidId);
+      await redis.set(`bid:${bidId}`, JSON.stringify(bidData));
+      await redis.sadd(`bounty:${bounty.id}:bids`, bidId);
 
-    const currentBids = (bounty.bidCount || 0) + 1;
-    await redis.set(`bounty:${bounty.id}`, JSON.stringify({ ...bounty, bidCount: currentBids }));
+      const currentBids = (bounty.bidCount || 0) + 1;
+      await redis.set(`bounty:${bounty.id}`, JSON.stringify({ ...bounty, bidCount: currentBids }));
 
-    console.log(`[auto-worker] Submitted bid ${bidId} on ${bounty.id}`);
-    return true;
-  } catch (e) {
-    console.error('[auto-worker] submitBid error:', e);
-    return false;
-  }
+      console.log(`[auto-worker] Submitted bid ${bidId} on ${bounty.id}`);
+      return true;
+    } catch (e) {
+      console.error('[auto-worker] submitBid error:', e);
+      return false;
+    }
 }
 
 async function generateProposal(bounty: any, groq: any): Promise<string> {
@@ -342,6 +412,14 @@ export async function POST(req: NextRequest) {
     const assignedBounties = await getAssignedBounties(redis);
     console.log(`[auto-worker] Found ${openBounties.length} open, ${assignedBounties.length} assigned bounty(ies)`);
     
+    // Debug: Log details of open bounties
+    if (openBounties.length > 0) {
+      console.log(`[auto-worker] Open bounties details:`);
+      openBounties.forEach((b, index) => {
+        console.log(`  ${index+1}. ID: ${b.id}, Task: "${b.task}", Type: ${b.type}, Reward: ${b.reward}`);
+      });
+    }
+    
     if (assignedBounties.length > 0) {
       console.log(`[auto-worker] Assigned bounties:`, assignedBounties.map(b => ({ 
         id: b.id, 
@@ -360,52 +438,146 @@ export async function POST(req: NextRequest) {
       errors: 0,
     };
 
-     for (const bounty of openBounties) {
-      results.evaluated++;
-
-      if (await alreadyBid(bounty.id, WORKER_FID)) {
-        results.skippedAlreadyBid++;
-        console.log(`[auto-worker] Already bid on ${bounty.id}, skipping`);
-        continue;
-      }
+    // Debug: capture open bounties found
+    const openBountiesFound = await getOpenBounties(redis);
+    const assignedBountiesFound = await getAssignedBounties(redis);
+    console.log(`[auto-worker] Found ${openBountiesFound.length} open, ${assignedBountiesFound.length} assigned bounty(ies)`);
+    
+    // Debug: Log details of open bounties
+    if (openBountiesFound.length > 0) {
+      console.log(`[auto-worker] Open bounties details:`);
+      openBountiesFound.forEach((b, index) => {
+        console.log(`  ${index+1}. ID: ${b.id}, Task: "${b.task}", Type: ${b.type}, Reward: ${b.reward}, Status: ${b.status}`);
+      });
+    }
+    
+    if (assignedBountiesFound.length > 0) {
+      console.log(`[auto-worker] Assigned bounties:`, assignedBountiesFound.map(b => ({ 
+        id: b.id, 
+        workerFid: b.workerFid, 
+        targetFid: WORKER_FID,
+        status: b.status
+      })));
+    }
 
       const shouldBid = await shouldBidOnBounty(bounty, groq);
+      console.log(`[auto-worker] Should bid on ${bounty.id}: ${shouldBid}`);
       if (shouldBid) {
         const submitted = await submitBid(redis, bounty, groq);
         if (submitted) {
           results.bid++;
-          // Auto-accept our own bid if we're the only bidder or if confident
-          // In a real implementation, you might want more sophisticated logic here
-          // For now, we'll simulate acceptance after a delay by checking if assigned
-          // But we can also immediately accept if we want full autonomy
-          console.log(`[auto-worker] Bid submitted for ${bounty.id}, would auto-accept in production`);
+          console.log(`[auto-worker] Bid submitted for ${bounty.id}`);
+          // Auto-accept our own bid if bounty is still open
+          const bountyData = await redis.get(`bounty:${bounty.id}`);
+          if (bountyData) {
+            const bountyObj = typeof bountyData === 'string' ? JSON.parse(bountyData) : bountyData;
+            // If still open and we bid, auto-accept
+            if (bountyObj.status === 'open') {
+              const accepted = await acceptBid(redis, bounty.id, WORKER_FID, WORKER_USERNAME);
+              if (accepted) {
+                console.log(`[auto-worker] Auto-accepted bid for ${bounty.id}`);
+              }
+            }
+          }
         } else {
           results.errors++;
         }
       } else {
         results.skippedAlreadyBid++;
+        console.log(`[auto-worker] Skipped bidding on ${bounty.id}`);
       }
     }
 
-    // AUTO-ACCEPT BIDS: Accept our own bids if bounty is still open
-    // This enables full autonomy: bid → accept → execute → settle
-    for (const bounty of openBounties) {
-      if (await alreadyBid(bounty.id, WORKER_FID)) {
-        const bountyData = await redis.get(`bounty:${bounty.id}`);
-        if (bountyData) {
-          const bountyObj = typeof bountyData === 'string' ? JSON.parse(bountyData) : bountyData;
-          // If still open and we bid, auto-accept
-          if (bountyObj.status === 'open') {
-            const accepted = await acceptBid(redis, bounty.id, WORKER_FID, WORKER_USERNAME);
-            if (accepted) {
-              console.log(`[auto-worker] Auto-accepted bid for ${bounty.id}`);
-              // Move to assigned processing in next iteration by skipping execution this round
-              // The bid is now accepted, so next cron cycle will see it as assigned
-            }
-          }
-        }
+    for (const bounty of assignedBounties) {
+      if (bounty.workerFid === WORKER_FID) {
+        console.log(`[auto-worker] Executing assigned bounty ${bounty.id}`);
+        results.executed++;
+        const result = await executeTask(bounty);
+        await settleBounty(redis, bounty, result);
+        results.settled++;
       }
     }
+
+    const duration = Date.now() - startTime;
+    console.log(`[auto-worker] Completed in ${duration}ms`, results);
+
+    return NextResponse.json({
+      success: true,
+      duration: `${duration}ms`,
+      results,
+    });
+  } catch (error) {
+    console.error('[auto-worker] Error:', error);
+    return NextResponse.json({
+      error: error instanceof Error ? error.message : 'Unknown error',
+    }, { status: 500 });
+  }
+}
+
+    const groq = await getGroq();
+    if (!groq) {
+      console.log('[auto-worker] Warning: No Groq configured, running in limited mode');
+    }
+
+    const openBounties = await getOpenBounties(redis);
+    const assignedBounties = await getAssignedBounties(redis);
+    console.log(`[auto-worker] Found ${openBounties.length} open, ${assignedBounties.length} assigned bounty(ies)`);
+    
+    if (assignedBounties.length > 0) {
+      console.log(`[auto-worker] Assigned bounties:`, assignedBounties.map(b => ({ 
+        id: b.id, 
+        workerFid: b.workerFid, 
+        targetFid: WORKER_FID,
+        status: b.status
+      })));
+    }
+
+    const results = {
+      evaluated: 0,
+      bid: 0,
+      skippedAlreadyBid: 0,
+      executed: 0,
+      settled: 0,
+      errors: 0,
+    };
+
+      for (const bounty of openBounties) {
+        results.evaluated++;
+        console.log(`[auto-worker] Evaluating bounty ${bounty.id}: "${bounty.task}"`);
+
+        if (await alreadyBid(bounty.id, WORKER_FID)) {
+          results.skippedAlreadyBid++;
+          console.log(`[auto-worker] Already bid on ${bounty.id}, skipping`);
+          continue;
+        }
+
+        const shouldBid = await shouldBidOnBounty(bounty, groq);
+        console.log(`[auto-worker] Should bid on ${bounty.id}: ${shouldBid}`);
+        if (shouldBid) {
+          const submitted = await submitBid(redis, bounty, groq);
+          if (submitted) {
+            results.bid++;
+            console.log(`[auto-worker] Bid submitted for ${bounty.id}`);
+            // Auto-accept our own bid if bounty is still open
+            const bountyData = await redis.get(`bounty:${bounty.id}`);
+            if (bountyData) {
+              const bountyObj = typeof bountyData === 'string' ? JSON.parse(bountyData) : bountyData;
+              // If still open and we bid, auto-accept
+              if (bountyObj.status === 'open') {
+                const accepted = await acceptBid(redis, bounty.id, WORKER_FID, WORKER_USERNAME);
+                if (accepted) {
+                  console.log(`[auto-worker] Auto-accepted bid for ${bounty.id}`);
+                }
+              }
+            }
+          } else {
+            results.errors++;
+          }
+        } else {
+          results.skippedAlreadyBid++;
+          console.log(`[auto-worker] Skipped bidding on ${bounty.id}`);
+        }
+      }
 
     for (const bounty of assignedBounties) {
       if (bounty.workerFid === WORKER_FID) {
