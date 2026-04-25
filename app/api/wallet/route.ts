@@ -28,7 +28,7 @@ function deriveWalletAddress(fid: number): string {
 async function getBalanceFromChain(address: string): Promise<number> {
   try {
     const axios = (await import('axios')).default;
-    const rpcUrl = process.env.BASE_SEPOLIA_RPC_URL || 'https://base-sepolia.g.alchemy.com/v2/demo';
+    const rpcUrl = process.env.BASE_SEPOLIA_RPC_URL || 'https://base-sepolia.g.alchemy.com/v2/Ef456717OSoAY5b4ZMI10';
     
     const response = await axios.post(rpcUrl, {
       jsonrpc: '2.0',
@@ -38,10 +38,10 @@ async function getBalanceFromChain(address: string): Promise<number> {
         data: `0x70a08231000000000000000000000000${address.replace('0x', '')}`
       }, 'latest'],
       id: 1,
-    });
+    }, { timeout: 10000 });
     
     const balanceHex = response.data?.result;
-    if (!balanceHex) return 0;
+    if (!balanceHex || balanceHex === '0x') return 0;
     return parseInt(balanceHex, 16) / 1_000_000;
   } catch (error) {
     console.error('[wallet] Error getting balance:', error);

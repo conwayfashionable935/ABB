@@ -241,6 +241,25 @@ export default function MiniApp() {
     <div className="min-h-screen bg-[#000]">
       <div className="max-w-md mx-auto bg-[#000] min-h-screen">
         <div className="p-5">
+          {fundingAddress && (
+            <div className="mb-4 bg-[#1C1C1E] rounded-xl p-3">
+              <div className="text-[10px] text-white/40 mb-1">Your Base Sepolia Deposit Address</div>
+              <button
+                onClick={async () => {
+                  await navigator.clipboard.writeText(fundingAddress);
+                  setCopyingAddress(true);
+                  setTimeout(() => setCopyingAddress(false), 2000);
+                }}
+                className="w-full text-left text-xs text-[#FF9500] hover:text-[#FF3B30] transition-colors flex items-center gap-1"
+              >
+                <FiCopy size={10} />
+                {copyingAddress ? 'Copied!' : fundingAddress}
+              </button>
+              <div className="text-[10px] text-[#34C759] mt-2">
+                <FiDollarSign className="inline" size={8} />{userBalance.toFixed(2)} USDC balance
+              </div>
+            </div>
+          )}
           <div className="flex items-center justify-between mb-6">
             <div>
               <h1 className="text-2xl font-bold text-white">ABB</h1>
@@ -268,28 +287,29 @@ export default function MiniApp() {
                   <motion.div
                     initial={{ opacity: 0, y: -10 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="absolute top-12 right-0 bg-[#2C2C2E] rounded-2xl p-4 w-48 shadow-xl"
+                    className="absolute top-12 right-0 bg-[#2C2C2E] rounded-2xl p-4 w-56 shadow-xl"
                     style={{ zIndex: 9999 }}
                   >
                     <div className="text-xs text-white/60 mb-2">{user.username}</div>
-                    {fundingAddress && (
+                    <div className="text-[10px] text-white/40 mb-1">Deposit Address</div>
+                    {fundingAddress ? (
                       <button
                         onClick={async () => {
                           await navigator.clipboard.writeText(fundingAddress);
                           setCopyingAddress(true);
                           setTimeout(() => setCopyingAddress(false), 2000);
                         }}
-                        className="w-full text-left text-xs text-white/80 hover:text-[#FF9500] transition-colors flex items-center gap-2 mb-2"
+                        className="w-full text-left text-xs text-[#FF9500] hover:text-[#FF3B30] transition-colors flex items-center gap-1 mb-2 break-all"
                       >
-                        <FiCopy size={12} />
-                        {copyingAddress ? 'Copied!' : 'Copy Deposit Address'}
+                        <FiCopy size={10} />
+                        {copyingAddress ? 'Copied!' : fundingAddress.slice(0, 6) + '...' + fundingAddress.slice(-4)}
                       </button>
+                    ) : (
+                      <div className="text-xs text-white/30 mb-2">Loading...</div>
                     )}
-                    {userBalance > 0 && (
-                      <div className="text-xs text-[#34C759] mb-3">
-                        <FiDollarSign className="inline" size={10} />{userBalance.toFixed(2)} USDC
-                      </div>
-                    )}
+                    <div className="text-xs text-[#34C759] mb-3">
+                      <FiDollarSign className="inline" size={10} />{userBalance.toFixed(2)} USDC
+                    </div>
                     <div className="border-t border-white/10 pt-2 mt-2">
                       <button
                         onClick={handleDisconnect}
