@@ -176,11 +176,13 @@ async function handleResult(cast: any): Promise<void> {
   
   const paymentResult = await (async () => {
     const { transferUsdc } = await import('../../lib/wallet');
-    const winnerAddress = bounty.winnerAddress || process.env.WORKER_ALPHA_WALLET_ADDRESS;
-    if (winnerAddress && bounty.rewardUsdc) {
-      return await transferUsdc(winnerAddress, bounty.rewardUsdc, 'base');
+    const workerAddress = bounty.winnerAddress || process.env.WORKER_ALPHA_WALLET_ADDRESS;
+    if (!workerAddress || !bounty.rewardUsdc) {
+      return { success: false, error: 'No worker address or reward' };
     }
-    return { success: false, error: 'No winner address configured' };
+    // Use board wallet private key to pay worker
+    // In real implementation, this would be from poster's funded balance
+    return await transferUsdc(workerAddress, bounty.rewardUsdc, 'base');
   })();
 
   if (paymentResult.success) {

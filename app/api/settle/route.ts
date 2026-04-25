@@ -87,6 +87,12 @@ export async function POST(req: NextRequest) {
     bounty.paidAmountUsdc = rewardAmount;
     bounty.settledAt = Math.floor(Date.now() / 1000);
     
+    // Release locked funds - poster gets deducted, worker gets paid (via board wallet)
+    const posterFid = bounty.posterFid;
+    if (posterFid) {
+      await redis.hincrby(`user:${posterFid}`, 'lockedUsdc', -rewardAmount);
+    }
+    
     await updateBountyInRedis(bounty, redis);
     await updateAgentStats(bounty.workerFid, rewardAmount, redis);
 

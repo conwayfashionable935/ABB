@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { 
   FiGlobe, FiFileText, FiLink, FiZap, FiTarget,
-  FiDollarSign, FiCheck, FiPlus, FiCpu, FiArrowRight
+  FiDollarSign, FiCheck, FiPlus, FiCpu, FiArrowRight, FiCopy, FiLogOut
 } from 'react-icons/fi';
 
 interface User {
@@ -60,6 +60,10 @@ export default function MiniApp() {
   const [posted, setPosted] = useState(false);
   const [agentRunning, setAgentRunning] = useState(false);
   const [agentResult, setAgentResult] = useState<any>(null);
+  const [fundingAddress, setFundingAddress] = useState<string>('');
+  const [userBalance, setUserBalance] = useState<number>(0);
+  const [copyingAddress, setCopyingAddress] = useState(false);
+  const [showAccountMenu, setShowAccountMenu] = useState(false);
   const router = useRouter();
   const sdkRef = useRef<any>(null);
 
@@ -107,6 +111,30 @@ export default function MiniApp() {
     initSDK();
     fetchBounties();
   }, []);
+
+  useEffect(() => {
+    if (!user?.fid) return;
+    const currentFid = user.fid;
+    async function fetchWalletInfo() {
+      try {
+        const res = await fetch(`/api/wallet?fid=${currentFid}`);
+        const data = await res.json();
+        if (data.address) {
+          setFundingAddress(data.address);
+          setUserBalance(data.balance || 0);
+        }
+      } catch (e) {
+        console.error('Failed to fetch wallet info:', e);
+      }
+    }
+    fetchWalletInfo();
+  }, [user?.fid]);
+
+  const handleDisconnect = async () => {
+    setShowAccountMenu(false);
+    setUser(null);
+    router.push('/');
+  };
 
   const handleCreateBounty = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -212,10 +240,53 @@ export default function MiniApp() {
               <p className="text-xs text-white/40">Autonomous Labor</p>
             </div>
             {user && (
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-full bg-gradient-to-r from-[#FF9500] to-[#FF3B30] flex items-center justify-center text-black text-xs font-semibold">
-                  {user.username[0].toUpperCase()}
-                </div>
+              <div className="relative" style={{ zIndex: 100 }}>
+                <button
+                  onClick={() => setShowAccountMenu(!showAccountMenu)}
+                  className="flex items-center gap-2 cursor-pointer"
+                >
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-r from-[#FF9500] to-[#FF3B30] flex items-center justify-center text-black text-xs font-semibold cursor-pointer">
+                    {user.username[0].toUpperCase()}
+                  </div>
+                </button>
+                
+                {showAccountMenu && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="absolute top-12 right-0 bg-[#2C2C2E] rounded-2xl p-4 w-48 shadow-xl"
+                    style={{ zIndex: 9999 }}
+                  >
+                    <div className="text-xs text-white/60 mb-2">{user.username}</div>
+                    {fundingAddress && (
+                      <button
+                        onClick={async () => {
+                          await navigator.clipboard.writeText(fundingAddress);
+                          setCopyingAddress(true);
+                          setTimeout(() => setCopyingAddress(false), 2000);
+                        }}
+                        className="w-full text-left text-xs text-white/80 hover:text-[#FF9500] transition-colors flex items-center gap-2 mb-2"
+                      >
+                        <FiCopy size={12} />
+                        {copyingAddress ? 'Copied!' : 'Copy Deposit Address'}
+                      </button>
+                    )}
+                    {userBalance > 0 && (
+                      <div className="text-xs text-[#34C759] mb-3">
+                        <FiDollarSign className="inline" size={10} />{userBalance.toFixed(2)} USDC
+                      </div>
+                    )}
+                    <div className="border-t border-white/10 pt-2 mt-2">
+                      <button
+                        onClick={handleDisconnect}
+                        className="w-full text-left text-xs text-red-400 hover:text-red-300 transition-colors flex items-center gap-2"
+                      >
+                        <FiLogOut size={12} />
+                        Disconnect
+                      </button>
+                    </div>
+                  </motion.div>
+                )}
               </div>
             )}
           </div>

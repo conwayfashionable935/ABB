@@ -123,6 +123,26 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
+    const fidNum = posterFid || 0;
+    
+    // Check user's funded balance before creating bounty
+    if (fidNum > 0) {
+      const config = getRedisConfig();
+      if (config.url && config.token) {
+        const redis = new Redis({ url: config.url, token: config.token });
+        const depositedUsdc = await redis.hget(`user:${fidNum}`, 'depositedUsdc') as number || 0;
+        
+        if (depositedUsdc < rewardUsdc) {
+          return NextResponse.json({ 
+            error: 'Insufficient balance',
+            required: rewardUsdc,
+            available: depositedUsdc,
+            message: `You need at least ${rewardUsdc} USDC funded to create this bounty. Please deposit funds first.`
+          }, { status: 400 });
+        }
+      }
+    }
+
     const { nanoid } = await import('nanoid');
     const id = 'bnt_' + nanoid(8);
 
@@ -153,6 +173,12 @@ export async function POST(req: NextRequest) {
     await redis.set(key, JSON.stringify(newBounty));
     await redis.sadd('bounties:all', id);
     await redis.sadd('bounties:open', id);
+    
+    // Deduct from user's funded balance
+    if (fidNum > 0) {
+      await redis.hincrby(`user:${fidNum}`, 'depositedUsdc', -rewardUsdc);
+      await redis.hincrby(`user:${fidNum}`, 'lockedUsdc', rewardUsdc);
+    }
     
     // Verify the bounty was saved
     const verifyData = await redis.get(key);
