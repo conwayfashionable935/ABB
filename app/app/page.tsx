@@ -3,10 +3,9 @@
 import { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
 import { 
   FiGlobe, FiFileText, FiLink, FiZap, FiTarget,
-  FiDollarSign, FiCheck, FiPlus, FiCpu, FiArrowRight, FiCopy, FiLogOut
+  FiDollarSign, FiCheck, FiPlus, FiCpu, FiArrowRight, FiCopy, FiLogOut, FiExternalLink
 } from 'react-icons/fi';
 
 interface User {
@@ -64,6 +63,7 @@ export default function MiniApp() {
   const [userBalance, setUserBalance] = useState<number>(0);
   const [copyingAddress, setCopyingAddress] = useState(false);
   const [showAccountMenu, setShowAccountMenu] = useState(false);
+  const [showSplash, setShowSplash] = useState(true);
   const router = useRouter();
   const sdkRef = useRef<any>(null);
 
@@ -107,7 +107,6 @@ export default function MiniApp() {
         console.log('SDK init error:', e);
       }
     }
-    
     initSDK();
     fetchBounties();
   }, []);
@@ -130,7 +129,7 @@ export default function MiniApp() {
     fetchWalletInfo();
   }, [user?.fid]);
 
-  const handleDisconnect = async () => {
+  const handleDisconnect = () => {
     setShowAccountMenu(false);
     setUser(null);
     router.push('/');
@@ -139,7 +138,6 @@ export default function MiniApp() {
   const handleCreateBounty = async (e: React.FormEvent) => {
     e.preventDefault();
     setCreating(true);
-    
     try {
       const res = await fetch('/api/bounties', {
         method: 'POST',
@@ -153,44 +151,18 @@ export default function MiniApp() {
           posterUsername: user?.username || 'anonymous',
         }),
       });
-      
       if (res.ok) {
         const data = await res.json();
-        setBountyCreated(data.bounty);
-        
-        const castText = `🔔 New Bounty: "${data.bounty.task}" - Reward: ${data.bounty.reward} USDC`;
-        
-        try {
-          if (sdkRef.current) {
-            const result = await sdkRef.current.actions.composeCast({
-              text: castText,
-              embeds: [`https://abb-five-umber.vercel.app/bounties/${data.bounty.id}`],
-            });
-            if (result?.cast) {
-              setPosted(true);
-            }
-          } else {
-            window.open(`https://warpcast.com/~/compose?text=${encodeURIComponent(castText)}&embedUrl=${encodeURIComponent(`https://abb-five-umber.vercel.app/bounties/${data.bounty.id}`)}`, '_blank');
-            setPosted(true);
-          }
-        } catch (e) {
-          window.open(`https://warpcast.com/~/compose?text=${encodeURIComponent(castText)}`, '_blank');
-          setPosted(true);
-        }
+        setBountyCreated({ id: data.id, task: taskDescription, reward: rewardUsdc });
+        setPosted(true);
+        setTaskDescription('');
+        setRewardUsdc(1);
       }
     } catch (e) {
       console.error(e);
     } finally {
       setCreating(false);
     }
-  };
-
-  const handleBid = (bountyId: string) => {
-    router.push(`/submit-bid?bountyId=${bountyId}`);
-  };
-
-  const viewBounty = (bountyId: string) => {
-    router.push(`/bounties/${bountyId}`);
   };
 
   if (bountyCreated) {
@@ -214,17 +186,52 @@ export default function MiniApp() {
           <div className="text-2xl font-bold text-[#FF9500] mb-4">
             <FiDollarSign className="inline" size={20} />{bountyCreated.reward}
           </div>
-          
           {posted && (
             <div className="text-xs text-[#34C759] mb-4">✓ Shared to Warpcast</div>
           )}
-          
           <button 
             onClick={() => { setBountyCreated(null); setShowForm(false); }}
             className="w-full bg-[#3A3A3C] text-white font-medium py-3 rounded-2xl text-sm"
           >
             Create Another
           </button>
+        </motion.div>
+      </div>
+    );
+  }
+
+  if (showSplash) {
+    return (
+      <div className="min-h-screen bg-[#000] flex flex-col items-center justify-center p-5">
+        <motion.div 
+          initial={{ scale: 0.8, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          className="text-center w-full max-w-sm"
+        >
+          <div className="w-20 h-20 bg-gradient-to-r from-[#FF9500] to-[#FF3B30] rounded-3xl flex items-center justify-center mx-auto mb-6">
+            <FiCpu size={36} className="text-black" />
+          </div>
+          <h1 className="text-3xl font-bold text-white mb-2">ABB</h1>
+          <p className="text-white/60 mb-8">Autonomous Labor Market</p>
+          
+          <button 
+            onClick={() => setShowSplash(false)}
+            className="bg-gradient-to-r from-[#FF9500] to-[#FF3B30] text-black font-semibold py-3 px-8 rounded-2xl mb-4 w-full max-w-xs"
+          >
+            Enter App
+          </button>
+          
+          <div className="mt-6">
+            <a 
+              href="https://warpcast.com/~/channel/abb"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-white/40 flex items-center justify-center gap-2 hover:text-white transition-colors"
+            >
+              <FiExternalLink size={12} />
+              Open in Warpcast
+            </a>
+          </div>
         </motion.div>
       </div>
     );
@@ -239,18 +246,26 @@ export default function MiniApp() {
               <h1 className="text-2xl font-bold text-white">ABB</h1>
               <p className="text-xs text-white/40">Autonomous Labor</p>
             </div>
-            <div className="relative" style={{ zIndex: 100 }}>
-              <button
-                onClick={() => setShowAccountMenu(!showAccountMenu)}
-                className="flex items-center gap-2 cursor-pointer p-1"
+            <div className="flex items-center gap-3">
+              <a 
+                href="https://warpcast.com/~/channel/abb"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-white/40 hover:text-white transition-colors"
               >
-                <div className="w-8 h-8 rounded-full bg-gradient-to-r from-[#FF9500] to-[#FF3B30] flex items-center justify-center text-black text-xs font-semibold">
-                  {user?.username?.[0]?.toUpperCase() || '?'}
-                </div>
-              </button>
-              
-              {showAccountMenu && user && (
-                <motion.div
+                <FiExternalLink size={16} />
+              </a>
+              <div className="relative" style={{ zIndex: 100 }}>
+                <button
+                  onClick={() => setShowAccountMenu(!showAccountMenu)}
+                  className="flex items-center gap-2 cursor-pointer p-1"
+                >
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-r from-[#FF9500] to-[#FF3B30] flex items-center justify-center text-black text-xs font-semibold">
+                    {user?.username?.[0]?.toUpperCase() || '?'}
+                  </div>
+                </button>
+                {showAccountMenu && user && (
+                  <motion.div
                     initial={{ opacity: 0, y: -10 }}
                     animate={{ opacity: 1, y: 0 }}
                     className="absolute top-12 right-0 bg-[#2C2C2E] rounded-2xl p-4 w-48 shadow-xl"
@@ -288,6 +303,7 @@ export default function MiniApp() {
                 )}
               </div>
             </div>
+          </div>
 
           <AnimatePresence mode="wait">
             {!showForm ? (
@@ -347,7 +363,6 @@ export default function MiniApp() {
                         key={bounty.id}
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
-                        onClick={() => viewBounty(bounty.id)}
                         className="bg-[#1C1C1E] rounded-2xl p-4 active:scale-[0.98] transition-transform cursor-pointer"
                       >
                         <div className="flex items-start gap-3">
@@ -416,26 +431,25 @@ export default function MiniApp() {
                     required
                   />
                 </div>
-                
+
                 <div className="mb-5">
                   <label className="text-xs text-white/40 mb-2 block">Reward (USDC)</label>
                   <div className="flex items-center gap-2">
+                    <FiDollarSign className="text-[#FF9500]" size={16} />
                     <input
                       type="number"
+                      min={1}
                       value={rewardUsdc}
-                      onChange={(e) => setRewardUsdc(parseFloat(e.target.value))}
-                      step={0.5}
-                      min={0.5}
-                      className="bg-[#2C2C2E] rounded-xl px-4 py-3 text-lg font-semibold text-white w-24"
+                      onChange={(e) => setRewardUsdc(parseInt(e.target.value) || 1)}
+                      className="bg-[#2C2C2E] rounded-xl p-4 text-sm text-white w-full"
                     />
-                    <span className="text-sm text-white/40">USDC</span>
                   </div>
                 </div>
-                
+
                 <button 
                   type="submit"
                   disabled={creating}
-                  className="w-full bg-gradient-to-r from-[#FF9500] to-[#FF3B30] text-black font-semibold py-4 rounded-xl"
+                  className="w-full bg-gradient-to-r from-[#FF9500] to-[#FF3B30] text-black font-semibold py-3 rounded-2xl disabled:opacity50"
                 >
                   {creating ? 'Creating...' : 'Create Bounty'}
                 </button>
