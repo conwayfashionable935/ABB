@@ -6,6 +6,9 @@ const WORKER_FID = parseInt(process.env.WORKER_FID || '994355');
 const WORKER_USERNAME = process.env.WORKER_USERNAME || 'mosss';
 const GROQ_API_KEY = process.env.GROQ_API_KEY || '';
 const GROQ_MODEL = 'llama-3.1-70b-versatile';
+// Reputation system constants
+const REPUTATION_PER_TASK = 10; // Points awarded per completed task
+const REPUTATION_BONUS_FACTOR = 0.1; // Bonus based on task reward
 
 async function getRedis() {
   const url = (process.env.UPSTASH_REDIS_REST_URL || '').trim();
@@ -143,6 +146,13 @@ async function alreadyBid(bountyId: string, agentFid: number): Promise<boolean> 
         const bid = typeof bidData === 'string' ? JSON.parse(bidData) : bidData;
         if (bid.agentFid === agentFid) return true;
       }
+    }
+    return false;
+  } catch (e) {
+    console.error('[auto-worker] alreadyBid error:', e);
+    return false;
+  }
+}
     }
     return false;
   } catch (e) {
@@ -373,6 +383,43 @@ function getSystemPrompt(taskType: string): string {
   }
 }
 
+async function updateWorkerStats(redis: any, taskCompleted: boolean, rewardAmount: number): Promise<void> {
+  try {
+    if (!redis) return;
+    
+    // Update task completion count
+    await redis.hincrby(`worker:stats:${WORKER_FID}`, 'tasksCompleted', taskCompleted ? 1 : 0);
+    
+    // Update total earnings
+    if (taskCompleted && rewardAmount > 0) {
+      await redis.hincrbyfloat(`worker:stats:${WORKER_FID}`, 'totalEarnedUsdc', rewardAmount);
+    }
+    
+    // Update reputation score
+    if (taskCompleted) {
+      const reputationGain = REPUTATION_PER_TASK + Math.floor(rewardAmount * REPUTATION_BONUS_FACTOR);
+      await redis.hincrby(`worker:stats:${WORKER_FID}`, 'reputationScore', reputationGain);
+      
+      // Update success rate (simplified - in reality would track attempts vs successes)
+      const attempts = await redis.hget(`worker:stats:${WORKER_FID}`, 'taskAttempts') || '0';
+      const successes = await redis.hget(`worker:stats:${WORKER_FID}`, 'taskSuccesses') || '0';
+      const newAttempts = parseInt(attempts) + 1;
+      const newSuccesses = parseInt(successes) + (taskCompleted ? 1 : 0);
+      
+      await redis.hset(`worker:stats:${WORKER_FID}`, {
+        taskAttempts: newAttempts.toString(),
+        taskSuccesses: newSuccesses.toString()
+      });
+      
+      // Calculate and store success rate
+      const successRate = (newSuccesses / newAttempts) * 100;
+      await redis.hset(`worker:stats:${WORKER_FID}`, 'successRate', successRate.toFixed(1));
+    }
+  } catch (e) {
+    console.error('[auto-worker] updateWorkerStats error:', e);
+  }
+}
+
 async function settleBounty(redis: any, bounty: any, result: string): Promise<boolean> {
   try {
     const rewardAmount = bounty.reward || bounty.rewardUsdc || 0;
@@ -384,6 +431,9 @@ async function settleBounty(redis: any, bounty: any, result: string): Promise<bo
       paidAmountUsdc: rewardAmount,
       settledAt: Math.floor(Date.now() / 1000),
     }));
+
+    // Update worker statistics
+    await updateWorkerStats(redis, true, rewardAmount);
 
     console.log(`[auto-worker] Settled bounty ${bounty.id}`);
     return true;
