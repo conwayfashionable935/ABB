@@ -7,6 +7,20 @@ const WORKER_USERNAME = process.env.WORKER_USERNAME || 'mosss';
 const GROQ_API_KEY = process.env.GROQ_API_KEY || '';
 const GROQ_MODEL = 'llama-3.1-70b-versatile';
 
+const MIN_REWARD_THRESHOLD = 1; // Minimum reward in USDC to consider
+const MAX_TASK_COMPLEXITY = 'medium'; // 'simple', 'medium', 'complex'
+
+const TASK_TYPES_CAN_DO = [
+  'translate', 'translation', 'summarize', 'summarization', 'general',
+  'research', 'writing', 'analysis', 'math', 'code', 'debug',
+  'explain', 'describe', 'create', 'generate', 'onchain-lookup'
+];
+
+const TASK_TYPES_CANT_DO = [
+  'physical', 'deliver', 'phone', 'in-person', 'meet', 'walk', 'drive',
+  'buy', 'purchase', 'ship', 'mail', 'hand-deliver'
+];
+
 async function getRedis() {
   const url = (process.env.UPSTASH_REDIS_REST_URL || '').trim();
   const token = (process.env.UPSTASH_REDIS_REST_TOKEN || '').trim();
@@ -41,6 +55,99 @@ async function getBounties(redis: any, status: string) {
   } catch (e) {
     console.error('[auto-worker] getBounties error:', e);
     return [];
+  }
+}
+
+function checkTaskCapabilities(bounty: any): { canDo: boolean; reason: string } {
+  const taskLower = (bounty.task || '').toLowerCase();
+  const taskType = (bounty.type || '').toLowerCase();
+  
+  for (const cantDo of TASK_TYPES_CANT_DO) {
+    if (taskLower.includes(cantDo) || taskType.includes(cantDo)) {
+      return { canDo: false, reason: `Task requires ${cantDo} action I cannot perform` };
+    }
+  }
+  
+  let canDoType = false;
+  for (const canDo of TASK_TYPES_CAN_DO) {
+    if (taskLower.includes(canDo) || taskType.includes(canDo)) {
+      canDoType = true;
+      break;
+    }
+  }
+  
+  if (!canDoType && TASK_TYPES_CAN_DO.length > 0) {
+    return { canDo: false, reason: 'Task type not in my capabilities' };
+  }
+  
+  if (bounty.reward < MIN_REWARD_THRESHOLD) {
+    return { canDo: false, reason: `Reward ${bounty.reward} below threshold ${MIN_REWARD_THRESHOLD}` };
+  }
+  
+  return { canDo: true, reason: 'Task is within my AI capabilities' };
+}
+
+async function evaluateWithAI(bounty: any, groq: any): Promise<{shouldBid: boolean; reason: string}> {
+  if (!groq) {
+    const simpleCheck = checkTaskCapabilities(bounty);
+    return { shouldBid: simpleCheck.canDo, reason: simpleCheck.reason };
+  }
+
+  const taskType = bounty.type || 'general';
+  const reward = bounty.reward || 0;
+  const task = bounty.task || '';
+
+  const prompt = `You are an autonomous AI agent deciding whether to bid on a bounty task.
+
+Bounty Details:
+- Task: ${task}
+- Type: ${taskType}
+- Reward: ${reward} USDC
+- Posted by: ${bounty.posterUsername || 'unknown'}
+
+Your Capabilities:
+- Translation, summarization, research, writing, analysis
+- Math calculations and code debugging
+- Information retrieval and content generation
+- Creating documents, emails, posts, descriptions
+
+You CANNOT do:
+- Physical actions (delivery, buying, meeting in person)
+- Anything requiring phone/voice calls
+- Tasks needing specific software/tools not available to AI
+- Legal, medical, or financial advice requiring licenses
+
+Evaluate:
+1. Can you complete this task with AI capabilities?
+2. Is the reward fair for the effort?
+3. Is the task clear and well-defined?
+
+Respond in this exact format:
+YES - [brief reason]  OR  NO - [brief reason]`;
+
+  try {
+    const completion = await groq.chat.completions.create({
+      model: GROQ_MODEL,
+      messages: [{ role: 'user', content: prompt }],
+      max_tokens: 100,
+      temperature: 0.3,
+    });
+
+    const response = completion.choices[0]?.message?.content?.trim() || '';
+    const shouldBid = response.toUpperCase().startsWith('YES');
+    
+    let reason = response;
+    if (response.toUpperCase().startsWith('YES')) {
+      reason = 'AI approved bidding: ' + response;
+    } else {
+      reason = 'AI rejected: ' + response;
+    }
+    
+    return { shouldBid, reason };
+  } catch (e) {
+    console.error('[auto-worker] AI evaluation error:', e);
+    const simpleCheck = checkTaskCapabilities(bounty);
+    return { shouldBid: simpleCheck.canDo, reason: simpleCheck.reason + ' (AI error, fallback to rules)' };
   }
 }
 
@@ -172,7 +279,6 @@ export async function POST(req: NextRequest) {
     }
 
     const groq = await getGroq();
-
     const openBounties = await getBounties(redis, 'open');
     const assignedBounties = await getBounties(redis, 'assigned');
     
@@ -197,7 +303,7 @@ export async function POST(req: NextRequest) {
 
     for (const bounty of openBounties) {
       results.evaluated++;
-      console.log(`[auto-worker] Processing: ${bounty.id} - ${bounty.task}`);
+      console.log(`[auto-worker] Evaluating: ${bounty.id} - ${bounty.task}`);
 
       if (await alreadyBid(bounty.id, WORKER_FID)) {
         results.skippedAlreadyBid++;
@@ -205,10 +311,18 @@ export async function POST(req: NextRequest) {
         continue;
       }
 
+      const evaluation = await evaluateWithAI(bounty, groq);
+      console.log(`[auto-worker] AI Decision: ${evaluation.shouldBid ? 'BID' : 'SKIP'} - ${evaluation.reason}`);
+      
+      if (!evaluation.shouldBid) {
+        results.skippedAlreadyBid++;
+        continue;
+      }
+
       const submitted = await submitBid(redis, bounty);
       if (submitted) {
         results.bid++;
-        console.log(`[auto-worker] Bid submitted for ${bounty.id}`);
+        console.log(`[auto-worker] Bid submitted for ${bounty.id} - ${evaluation.reason}`);
         
         await acceptBid(redis, bounty.id, WORKER_FID, WORKER_USERNAME);
         console.log(`[auto-worker] Auto-accepted bid for ${bounty.id}`);
