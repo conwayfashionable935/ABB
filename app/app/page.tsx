@@ -117,28 +117,38 @@ export default function MiniApp() {
   }
 
   const handlePrivyLogin = async () => {
-    if (!user?.fid) return;
     setWalletLoading(true);
     try {
-      const res = await fetch('/api/auth/privy-login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fid: user.fid, username: user.username }),
-      });
-      const data = await res.json();
-      if (data.address) {
-        setFundingAddress(data.address);
-        setUserBalance(data.balance || 0);
-        localStorage.setItem('privy_session', JSON.stringify({
-          user: { id: String(user.fid), fid: user.fid, username: user.username, wallet: { address: data.address, id: '' } },
-          expiresAt: Date.now() + 24 * 60 * 60 * 1000
-        }));
+      const miniappSdk = (await import('@farcaster/miniapp-sdk')).default;
+      await miniappSdk.actions.ready();
+      const ctx = await miniappSdk.context;
+      
+      if (ctx?.user) {
+        setUser({ fid: ctx.user.fid, username: ctx.user.username || '' });
+        
+        const res = await fetch('/api/auth/privy-login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fid: ctx.user.fid, username: ctx.user.username }),
+        });
+        const data = await res.json();
+        if (data.address) {
+          setFundingAddress(data.address);
+          setUserBalance(data.balance || 0);
+          localStorage.setItem('privy_session', JSON.stringify({
+            user: { id: String(ctx.user.fid), fid: ctx.user.fid, username: ctx.user.username, wallet: { address: data.address, id: '' } },
+            expiresAt: Date.now() + 24 * 60 * 60 * 1000
+          }));
+        }
+        setShowSplash(false);
+      } else {
+        alert('Please open the app from Warpcast to authenticate');
       }
     } catch (e) {
       console.error('Privy login error:', e);
+      alert('Authentication error. Please open in Warpcast.');
     }
     setWalletLoading(false);
-    setShowSplash(false);
   };
 
   const initPrivyWallet = async (fid: number, username: string) => {
@@ -272,7 +282,7 @@ export default function MiniApp() {
           <p className="text-white/60 mb-8">Agent Bounty Board</p>
           
           <button 
-            onClick={user ? () => setShowSplash(false) : handlePrivyLogin}
+            onClick={handlePrivyLogin}
             disabled={walletLoading}
             className="bg-gradient-to-r from-[#FF9500] to-[#FF3B30] text-black font-semibold py-3 px-8 rounded-2xl mb-4 w-full max-w-xs disabled:opacity50"
           >
