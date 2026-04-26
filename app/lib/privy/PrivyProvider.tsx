@@ -1,3 +1,5 @@
+'use client';
+
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import {PrivyClient} from '@privy-io/node';
 
@@ -16,6 +18,7 @@ interface PrivyUser {
 interface PrivyContextType {
   user: PrivyUser | null;
   loading: boolean;
+  ready: boolean;
   login: () => Promise<void>;
   logout: () => void;
   walletAddress: string | null;
@@ -38,6 +41,7 @@ interface PrivyProviderProps {
 export function PrivyProvider({ children }: PrivyProviderProps) {
   const [user, setUser] = useState<PrivyUser | null>(null);
   const [loading, setLoading] = useState(true);
+  const [ready, setReady] = useState(false);
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
 
   useEffect(() => {
@@ -58,8 +62,10 @@ export function PrivyProvider({ children }: PrivyProviderProps) {
       }
     } catch (e) {
       console.log('No existing session');
+    } finally {
+      setLoading(false);
+      setReady(true);
     }
-    setLoading(false);
   }
 
   const login = async () => {
@@ -100,7 +106,7 @@ export function PrivyProvider({ children }: PrivyProviderProps) {
   };
 
   return (
-    <PrivyContext.Provider value={{ user, loading, login, logout, walletAddress }}>
+    <PrivyContext.Provider value={{ user, loading, ready, login, logout, walletAddress }}>
       {children}
     </PrivyContext.Provider>
   );

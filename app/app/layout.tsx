@@ -1,5 +1,5 @@
 import { Metadata } from 'next';
-import { PrivyProvider } from '@/lib/privy/PrivyProvider';
+import { PrivyProvider } from '@/app/lib/privy/PrivyProvider';
 
 const APP_URL = 'https://abb-five-umber.vercel.app';
 

@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
-import { usePrivy } from '@/lib/privy/PrivyProvider';
+import { usePrivy } from '@/app/lib/privy/PrivyProvider';
 import { 
   FiGlobe, FiFileText, FiLink, FiZap, FiTarget,
   FiDollarSign, FiCheck, FiPlus, FiCpu, FiArrowRight, FiCopy, FiLogOut, FiExternalLink
