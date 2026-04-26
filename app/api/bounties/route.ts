@@ -4,6 +4,7 @@ import { Redis } from '@upstash/redis';
 export const dynamic = 'force-dynamic';
 
 const MINIAPP_URL = 'https://abb-five-umber.vercel.app';
+const USDC_ADDRESS = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
 
 function getRedisConfig() {
   return {
@@ -12,11 +13,39 @@ function getRedisConfig() {
   };
 }
 
+async function getBalanceFromChain(address: string): Promise<number> {
+  try {
+    const axios = (await import('axios')).default;
+    const rpcUrl = process.env.BASE_SEPOLIA_RPC_URL;
+    
+    if (!rpcUrl) {
+      console.log('[wallet] No RPC URL configured');
+      return 0;
+    }
+    
+    const response = await axios.post(rpcUrl, {
+      jsonrpc: '2.0',
+      method: 'eth_call',
+      params: [{
+        to: USDC_ADDRESS,
+        data: `0x70a08231000000000000000000000000${address.replace('0x', '')}`
+      }, 'latest'],
+      id: 1,
+    }, { timeout: 10000 });
+    
+    const balanceHex = response.data?.result;
+    if (!balanceHex || balanceHex === '0x') return 0;
+    return parseInt(balanceHex, 16) / 1_000_000;
+  } catch (error) {
+    console.error('[wallet] Error getting balance:', error);
+    return 0;
+  }
+}
+
 async function postCastToFarcaster(text: string): Promise<{hash: string | null, error?: string}> {
   let neynarApiKey = process.env.NEYNAR_API_KEY || '';
   const signerUuid = process.env.BOUNTY_POSTER_SIGNER_UUID || '';
   
-  // Sanitize API key - remove invalid HTTP header characters
   neynarApiKey = neynarApiKey.replace(/[^\x20-\x7E]/g, '').trim();
   
   if (!neynarApiKey || !signerUuid) {
@@ -57,27 +86,20 @@ export async function GET() {
     
     const redis = new Redis({ url: redisUrl, token: redisToken });
     
-    // Get all bounty IDs - smembers returns string[]
     const bountyIds = await redis.smembers('bounties:all');
     const bountyIdsArray = Array.isArray(bountyIds) ? bountyIds : [];
     
     if (bountyIdsArray.length === 0) {
-      return NextResponse.json({ 
-        bounties: [], 
-        activities: [],
-        source: 'redis'
-      });
+      return NextResponse.json({ bounties: [], activities: [], source: 'redis' });
     }
     
     const bounties: any[] = [];
     for (const bountyId of bountyIdsArray) {
       const data = await redis.get('bounty:' + bountyId);
       if (data) {
-        // Upstash Redis auto-parses JSON, so data is already an object
         if (typeof data === 'object') {
           bounties.push(data as any);
         } else {
-          // Fallback for string data
           try {
             bounties.push(JSON.parse(data as string));
           } catch { /* skip */ }
@@ -85,7 +107,6 @@ export async function GET() {
       }
     }
     
-    // Get recent activities
     const activityData = await redis.lrange('activities:recent', 0, 19);
     const activities: any[] = [];
     if (activityData && Array.isArray(activityData)) {
@@ -100,14 +121,9 @@ export async function GET() {
       }
     }
     
-    // Sort by createdAt
     bounties.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
     
-    return NextResponse.json({ 
-      bounties, 
-      activities,
-      source: 'redis'
-    });
+    return NextResponse.json({ bounties, activities, source: 'redis' });
   } catch (error: any) {
     console.error('GET Error:', error);
     return NextResponse.json({ error: String(error.message) }, { status: 500 });
@@ -134,6 +150,33 @@ export async function POST(req: NextRequest) {
 
     const redis = new Redis({ url: redisUrl, token: redisToken });
     
+    let walletAddress: string | null = null;
+    let balance = 0;
+    
+    if (fidNum > 0) {
+      walletAddress = await redis.get(`privy_wallet:${fidNum}`);
+      
+      if (walletAddress) {
+        balance = await getBalanceFromChain(walletAddress);
+      }
+    }
+    
+    if (balance < rewardUsdc) {
+      return NextResponse.json({
+        requiresFunding: true,
+        currentBalance: balance,
+        requiredAmount: rewardUsdc,
+        walletAddress: walletAddress,
+        message: `Insufficient balance. You have ${balance.toFixed(2)} USDC but need ${rewardUsdc} USDC. Please fund your wallet first.`,
+        instructions: [
+          '1. Copy your wallet address',
+          '2. Go to https://bridge.base.org/deposit',
+          '3. Deposit USDC to Base Sepolia',
+          '4. Return and create bounty'
+        ]
+      }, { status: 402 });
+    }
+
     const { nanoid } = await import('nanoid');
     const id = 'bnt_' + nanoid(8);
     
@@ -145,6 +188,7 @@ export async function POST(req: NextRequest) {
       status: 'open',
       posterUsername: posterUsername || 'anonymous',
       posterFid: posterFid || 0,
+      posterWallet: walletAddress || '',
       deadlineTs: Math.floor(Date.now() / 1000) + deadlineHours * 3600,
       createdAt: Math.floor(Date.now() / 1000),
       castHash: ''
@@ -155,20 +199,8 @@ export async function POST(req: NextRequest) {
     await redis.sadd('bounties:all', id);
     await redis.sadd('bounties:open', id);
     
-    // Store poster's wallet address for payment tracking
-    if (fidNum > 0) {
-      const walletAddress = await redis.get(`privy_wallet:${fidNum}`);
-      if (walletAddress) {
-        await redis.hset(`user:${fidNum}`, {
-          pendingBountyReward: (await redis.hget(`user:${fidNum}`, 'pendingBountyReward') || 0) + rewardUsdc
-        });
-      }
-    }
-    
-    // Verify the bounty was saved
     const verifyData = await redis.get(key);
     
-    // ===== AUTO-POST TO FARCASTER =====
     const castText = [
       `BOUNTY | id: ${id}`,
       `task: ${taskDescription}`,
@@ -192,7 +224,7 @@ export async function POST(req: NextRequest) {
       console.log('[bounties] Cast not posted, error:', castResult.error);
     }
     
-    return NextResponse.json({ 
+    return NextResponse.json({
       bounty: newBounty,
       verify: !!verifyData,
       castPosted: !!castHash,

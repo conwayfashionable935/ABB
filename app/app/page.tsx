@@ -66,6 +66,8 @@ export default function MiniApp() {
   const [showAccountMenu, setShowAccountMenu] = useState(false);
   const [showSplash, setShowSplash] = useState(true);
   const [walletLoading, setWalletLoading] = useState(false);
+  const [showFundModal, setShowFundModal] = useState(false);
+  const [fundError, setFundError] = useState<string>('');
   const [agentActivity, setAgentActivity] = useState<{
     stage: 'idle' | 'evaluating' | 'bidding' | 'working' | 'settling' | 'complete';
     message: string;
@@ -205,6 +207,7 @@ export default function MiniApp() {
   const handleCreateBounty = async (e: React.FormEvent) => {
     e.preventDefault();
     setCreating(true);
+    setFundError('');
     try {
       const res = await fetch('/api/bounties', {
         method: 'POST',
@@ -219,6 +222,12 @@ export default function MiniApp() {
         }),
       });
       const data = await res.json();
+      
+      if (res.status === 402 && data.requiresFunding) {
+        setFundError(data.message);
+        setShowFundModal(true);
+        return;
+      }
       
       if (!res.ok) {
         alert(data.message || data.error || 'Failed to create bounty');
@@ -636,6 +645,62 @@ export default function MiniApp() {
               </motion.form>
             )}
           </AnimatePresence>
+          
+          {showFundModal && (
+            <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-5 z-50">
+              <motion.div 
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                className="bg-[#1C1C1E] rounded-3xl p-6 w-full max-w-sm"
+              >
+                <h3 className="text-lg font-bold text-white mb-2">Insufficient Balance</h3>
+                <p className="text-sm text-white/60 mb-4">{fundError}</p>
+                
+                {fundingAddress && (
+                  <div className="bg-[#2C2C2E] rounded-xl p-3 mb-4">
+                    <div className="text-xs text-white/40 mb-1">Your Wallet Address</div>
+                    <button
+                      onClick={async () => {
+                        await navigator.clipboard.writeText(fundingAddress);
+                        setCopyingAddress(true);
+                        setTimeout(() => setCopyingAddress(false), 2000);
+                      }}
+                      className="w-full text-left text-xs text-[#FF9500] break-all"
+                    >
+                      {copyingAddress ? 'Copied!' : fundingAddress}
+                    </button>
+                  </div>
+                )}
+                
+                <div className="text-xs text-white/40 mb-4">
+                  <p className="mb-1">How to fund:</p>
+                  <ol className="list-decimal list-inside space-y-1">
+                    <li>Copy your wallet address above</li>
+                    <li>Go to <span className="text-[#FF9500]">https://bridge.base.org</span></li>
+                    <li>Deposit USDC to Base Sepolia</li>
+                    <li>Return and create bounty</li>
+                  </ol>
+                </div>
+                
+                <div className="flex gap-3">
+                  <button 
+                    onClick={() => setShowFundModal(false)}
+                    className="flex-1 bg-[#3A3A3C] text-white font-medium py-3 rounded-2xl text-sm"
+                  >
+                    Close
+                  </button>
+                  <a 
+                    href="https://bridge.base.org/deposit"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex-1 bg-gradient-to-r from-[#FF9500] to-[#FF3B30] text-black font-semibold py-3 rounded-2xl text-sm text-center"
+                  >
+                    Get USDC
+                  </a>
+                </div>
+              </motion.div>
+            </div>
+          )}
         </div>
       </div>
     </div>
