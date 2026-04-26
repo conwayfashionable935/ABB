@@ -187,6 +187,8 @@ export default function MiniApp() {
     setShowAccountMenu(false);
     setUser(null);
     setFundingAddress('');
+    setUserBalance(0);
+    setShowSplash(true);
     logout();
   };
 
