@@ -162,9 +162,12 @@ export default function MiniApp() {
         body: JSON.stringify({ fid, username }),
       });
       const data = await res.json();
+      console.log('[wallet] initPrivyWallet response:', data);
       if (data.address) {
         setFundingAddress(data.address);
         setUserBalance(data.balance || 0);
+      } else {
+        console.log('[wallet] No address in response:', data);
       }
     } catch (e) {
       console.error('Failed to init Privy wallet:', e);
@@ -369,10 +372,10 @@ export default function MiniApp() {
               </a>
               <div className="relative" style={{ zIndex: 100 }}>
                 <button
-                  onClick={() => {
+                  onClick={async () => {
                     setShowAccountMenu(!showAccountMenu);
                     if (!showAccountMenu && user?.fid) {
-                      initPrivyWallet(user.fid, user.username);
+                      await initPrivyWallet(user.fid, user.username);
                     }
                   }}
                   className="flex items-center gap-2 cursor-pointer p-1"
@@ -391,9 +394,17 @@ export default function MiniApp() {
                     <div className="text-xs text-white/60 mb-2">@{user.username}</div>
                     <div className="text-[10px] text-[#34C759] mb-3 flex items-center gap-1">
                       <div className="w-2 h-2 rounded-full bg-[#34C759]"></div>
-                      Privy Wallet Connected
+                      Connected to Privy
                     </div>
-                    {fundingAddress && (
+                    
+                    <div className="bg-[#1C1C1E] rounded-xl p-2 mb-2">
+                      <div className="text-[10px] text-white/40 mb-1">USDC Balance (Base Sepolia)</div>
+                      <div className="text-lg font-semibold text-[#34C759]">
+                        ${userBalance.toFixed(2)}
+                      </div>
+                    </div>
+                    
+                    {fundingAddress ? (
                       <>
                         <div className="text-[10px] text-white/40 mb-1">Wallet Address</div>
                         <button
@@ -406,22 +417,20 @@ export default function MiniApp() {
                         >
                           {copyingAddress ? '✓ Copied!' : fundingAddress}
                         </button>
-                        <div className="flex items-center justify-between bg-[#1C1C1E] rounded-xl p-2 mb-2">
-                          <div className="text-[10px] text-white/40">Balance</div>
-                          <div className="text-sm font-semibold text-[#34C759]">
-                            ${userBalance.toFixed(2)} USDC
-                          </div>
-                        </div>
-                        <a 
-                          href="https://faucet.circle.com/"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="block text-center text-xs bg-[#FF9500] text-black px-3 py-2 rounded-lg font-medium mb-2"
-                        >
-                          Get Test USDC
-                        </a>
                       </>
+                    ) : (
+                      <div className="text-xs text-white/40 mb-2">Loading wallet...</div>
                     )}
+                    
+                    <a 
+                      href="https://faucet.circle.com/"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="block text-center text-xs bg-[#FF9500] text-black px-3 py-2 rounded-lg font-medium mb-2"
+                    >
+                      Get Test USDC
+                    </a>
+                    
                     <div className="border-t border-white/10 pt-2 mt-2">
                       <button
                         onClick={handleDisconnect}
