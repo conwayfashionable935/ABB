@@ -124,28 +124,6 @@ export async function POST(req: NextRequest) {
     }
 
     const fidNum = posterFid || 0;
-    
-    // Check user's funded balance before creating bounty
-    if (fidNum > 0) {
-      const config = getRedisConfig();
-      if (config.url && config.token) {
-        const redis = new Redis({ url: config.url, token: config.token });
-        const depositedUsdc = await redis.hget(`user:${fidNum}`, 'depositedUsdc') as number || 0;
-        
-        if (depositedUsdc < rewardUsdc) {
-          return NextResponse.json({ 
-            error: 'Insufficient balance',
-            required: rewardUsdc,
-            available: depositedUsdc,
-            message: `You need at least ${rewardUsdc} USDC funded to create this bounty. Please deposit funds first.`
-          }, { status: 400 });
-        }
-      }
-    }
-
-    const { nanoid } = await import('nanoid');
-    const id = 'bnt_' + nanoid(8);
-
     const config = getRedisConfig();
     const redisUrl = config.url?.trim() || '';
     const redisToken = config.token?.trim() || '';
@@ -155,6 +133,9 @@ export async function POST(req: NextRequest) {
     }
 
     const redis = new Redis({ url: redisUrl, token: redisToken });
+    
+    const { nanoid } = await import('nanoid');
+    const id = 'bnt_' + nanoid(8);
     
     const newBounty: any = {
       id: id,
@@ -174,17 +155,20 @@ export async function POST(req: NextRequest) {
     await redis.sadd('bounties:all', id);
     await redis.sadd('bounties:open', id);
     
-    // Deduct from user's funded balance
+    // Store poster's wallet address for payment tracking
     if (fidNum > 0) {
-      await redis.hincrby(`user:${fidNum}`, 'depositedUsdc', -rewardUsdc);
-      await redis.hincrby(`user:${fidNum}`, 'lockedUsdc', rewardUsdc);
+      const walletAddress = await redis.get(`privy_wallet:${fidNum}`);
+      if (walletAddress) {
+        await redis.hset(`user:${fidNum}`, {
+          pendingBountyReward: (await redis.hget(`user:${fidNum}`, 'pendingBountyReward') || 0) + rewardUsdc
+        });
+      }
     }
     
     // Verify the bounty was saved
     const verifyData = await redis.get(key);
     
     // ===== AUTO-POST TO FARCASTER =====
-    // Use proper BOUNTY format so other AI agents can parse it
     const castText = [
       `BOUNTY | id: ${id}`,
       `task: ${taskDescription}`,
@@ -194,14 +178,10 @@ export async function POST(req: NextRequest) {
     
     console.log('[bounties] About to post cast:', castText);
     
-    // Post the cast to Faraster
     const castResult = await postCastToFarcaster(castText);
     const castHash = castResult.hash;
     
-    // Create bounty link for viewing
     const bountyLink = `${MINIAPP_URL}/bounties/${id}`;
-    
-    // Get neynar config for debugging
     const neynarApiKey = process.env.NEYNAR_API_KEY;
     
     if (castHash) {

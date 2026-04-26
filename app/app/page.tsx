@@ -218,15 +218,22 @@ export default function MiniApp() {
           posterUsername: user?.username || 'anonymous',
         }),
       });
-      if (res.ok) {
-        const data = await res.json();
-        setBountyCreated({ id: data.id, task: taskDescription, reward: rewardUsdc });
+      const data = await res.json();
+      
+      if (!res.ok) {
+        alert(data.message || data.error || 'Failed to create bounty');
+        return;
+      }
+      
+      if (data.bounty) {
+        setBountyCreated({ id: data.bounty.id, task: taskDescription, reward: rewardUsdc });
         setPosted(true);
         setTaskDescription('');
         setRewardUsdc(1);
       }
     } catch (e) {
       console.error(e);
+      alert('Error creating bounty');
     } finally {
       setCreating(false);
     }
